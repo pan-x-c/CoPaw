@@ -207,7 +207,7 @@ def read_root():
     return {
         "message": (
             "CoPaw Web Console is not available. "
-            "If you installed CoPaw from source code, please run"
+            "If you installed CoPaw from source code, please run "
             "`npm ci && npm run build` in the CoPaw's `console` "
             "directory, and restart CoPaw to enable the web console."
         ),
