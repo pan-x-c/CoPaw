@@ -3,12 +3,20 @@
 It provides a unified interface to manage providers, such as listing available
 providers, adding/removing custom providers, and fetching provider details."""
 
+import os
 from typing import Dict, List
+import logging
+import json
+
+from pydantic import BaseModel, Field
 
 from copaw.providers.provider import ModelInfo, DefaultProvider, Provider
 from copaw.providers.openai_provider import OpenAIProvider
 from copaw.providers.anthropic_provider import AnthropicProvider
 from copaw.providers.ollama_provider import OllamaProvider
+from copaw.constant import SECRET_DIR
+
+logger = logging.getLogger(__name__)
 
 
 # -------------------------------------------------------
@@ -133,45 +141,105 @@ PROVIDER_OLLAMA = OllamaProvider(
     name="Ollama",
 )
 
-BUILTIN_PROVIDERS = {
-    PROVIDER_MODELSCOPE.id: PROVIDER_MODELSCOPE,
-    PROVIDER_DASHSCOPE.id: PROVIDER_DASHSCOPE,
-    PROVIDER_ALIYUN_CODINGPLAN.id: PROVIDER_ALIYUN_CODINGPLAN,
-    PROVIDER_OPENAI.id: PROVIDER_OPENAI,
-    PROVIDER_AZURE_OPENAI.id: PROVIDER_AZURE_OPENAI,
-    PROVIDER_ANTHROPIC.id: PROVIDER_ANTHROPIC,
-    PROVIDER_OLLAMA.id: PROVIDER_OLLAMA,
-    PROVIDER_LLAMACPP.id: PROVIDER_LLAMACPP,
-    PROVIDER_MLX.id: PROVIDER_MLX,
-}
+
+class ModelSlotConfig(BaseModel):
+    provider_id: str = Field(
+        ...,
+        description="ID of the provider to use for this model slot",
+    )
+    model: str = Field(
+        ...,
+        description="ID of the model to use for this model slot",
+    )
+
+
+class ProviderStore:
+    """A disk store for provider configurations."""
+
+    def __init__(self):
+        self.root_path = SECRET_DIR / "providers"
+        self.builtin_path = self.root_path / "builtin"
+        self.custom_path = self.root_path / "custom"
+        self.root_path.mkdir(parents=True, exist_ok=True)
+        self.builtin_path.mkdir(parents=True, exist_ok=True)
+        self.custom_path.mkdir(parents=True, exist_ok=True)
 
 
 class ProviderManager:
+    """A manager class to handle all providers,
+    including built-in and custom ones."""
+
     def __init__(self) -> None:
         # Initialize provider manager, load providers from registry and store
         # any necessary state (e.g., cached models).
+        self.builtin_providers: Dict[str, Provider] = {}
         self.custom_providers: Dict[str, Provider] = {}
+        self.active_model: ModelSlotConfig | None = None
+        self.root_path = SECRET_DIR / "providers"
+        self.builtin_path = self.root_path / "builtin"
+        self.custom_path = self.root_path / "custom"
+        self._prepare_disk_storage()
+        self._init_builtins()
+        self._migrate_legacy_providers()
+        self._load_from_storage()
+        self._update_local_models()
+
+    def _prepare_disk_storage(self):
+        """Prepare directory structure"""
+        for path in [self.root_path, self.builtin_path, self.custom_path]:
+            path.mkdir(parents=True, exist_ok=True)
+            try:
+                os.chmod(path, 0o700)  # Restrict permissions for security
+            except Exception:
+                pass
+
+    def _init_builtins(self):
+        self._add_builtin(PROVIDER_MODELSCOPE)
+        self._add_builtin(PROVIDER_DASHSCOPE)
+        self._add_builtin(PROVIDER_ALIYUN_CODINGPLAN)
+        self._add_builtin(PROVIDER_OPENAI)
+        self._add_builtin(PROVIDER_AZURE_OPENAI)
+        self._add_builtin(PROVIDER_ANTHROPIC)
+        self._add_builtin(PROVIDER_OLLAMA)
+        self._add_builtin(PROVIDER_LLAMACPP)
+        self._add_builtin(PROVIDER_MLX)
+
+    def _add_builtin(self, provider: Provider):
+        self.builtin_providers[provider.id] = provider
 
     def list_providers(self) -> List[Provider]:
         # Return a list of available providers, including both built-in and
         # custom ones. This can be used to populate the UI dropdown.
-        return list(BUILTIN_PROVIDERS.values()) + list(
+        return list(self.builtin_providers.values()) + list(
             self.custom_providers.values(),
         )
 
     def get_provider(self, provider_id: str) -> Provider | None:
         # Return a provider instance by its ID. This will be used to create
         # chat model instances for the agent.
-        if provider_id in BUILTIN_PROVIDERS:
-            return BUILTIN_PROVIDERS[provider_id]
+        if provider_id in self.builtin_providers:
+            return self.builtin_providers[provider_id]
         if provider_id in self.custom_providers:
             return self.custom_providers[provider_id]
         return None
 
+    def update_provider(self, provider_id: str, config: Dict) -> bool:
+        # Update the configuration of a provider (e.g., base URL, API key).
+        # This will be called when the user edits a provider's settings in the
+        # UI. It should update the in-memory provider instance and persist the
+        # changes to providers.json.
+        provider = self.get_provider(provider_id)
+        if not provider:
+            return False
+        for key, value in config.items():
+            if hasattr(provider, key):
+                setattr(provider, key, value)
+        return True
+
     def add_custom_provider(self, provider_data: Provider):
         # Add a new custom provider with the given data. This will update the
         # providers.json file and make the new provider available in the UI.
-        if provider_data.id in BUILTIN_PROVIDERS:
+        if provider_data.id in self.builtin_providers:
             raise ValueError(
                 f"'{provider_data.id}' conflicts with a built-in provider.",
             )
@@ -183,3 +251,157 @@ class ProviderManager:
         # providers.json file and remove the provider from the UI.
         if provider_id in self.custom_providers:
             del self.custom_providers[provider_id]
+
+    def activate_provider(self, provider_id: str, model_id: str):
+        # Set the active provider and model for the agent. This will update
+        # providers.json and determine which provider/model is used when the
+        # agent creates chat model instances.
+        provider = self.get_provider(provider_id)
+        if not provider:
+            raise ValueError(f"Provider '{provider_id}' not found.")
+        if not any(model.id == model_id for model in provider.models):
+            raise ValueError(
+                f"Model '{model_id}' not found in provider '{provider_id}'.",
+            )
+        # Here we would persist the active provider/model to providers.json.
+
+    def save_provider(
+        self,
+        provider: Provider,
+        is_builtin: bool = False,
+        skip_if_exists: bool = False,
+    ):
+        """Save a provider configuration to disk."""
+        provider_dir = self.builtin_path if is_builtin else self.custom_path
+        provider_path = provider_dir / f"{provider.id}.json"
+        if skip_if_exists and provider_path.exists():
+            return
+        with open(provider_path, "w", encoding="utf-8") as f:
+            json.dump(provider.model_dump(), f, ensure_ascii=False, indent=2)
+
+    def load_provider(
+        self,
+        provider_id: str,
+        is_builtin: bool = False,
+    ) -> Provider | None:
+        """Load a provider configuration from disk."""
+        provider_dir = self.builtin_path if is_builtin else self.custom_path
+        provider_path = provider_dir / f"{provider_id}.json"
+        if not provider_path.exists():
+            return None
+        with open(provider_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return Provider.model_validate(data)
+
+    def save_active_model(self, active_model: ModelSlotConfig):
+        """Save the active provider/model configuration to disk."""
+        active_path = self.root_path / "active_model.json"
+        with open(active_path, "w", encoding="utf-8") as f:
+            json.dump(
+                active_model.model_dump(),
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
+
+    def load_active_model(self) -> ModelSlotConfig | None:
+        """Load the active provider/model configuration from disk."""
+        active_path = self.root_path / "active_model.json"
+        if not active_path.exists():
+            return None
+        try:
+            with open(active_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return ModelSlotConfig.model_validate(data)
+        except Exception:
+            return None
+
+    def _add_buitin_provider(self, provider: Provider):
+        self.builtin_providers[provider.id] = provider
+
+    def _migrate_legacy_providers(self):
+        """Migrate from legacy providers.json format to the new structure."""
+        legacy_path = SECRET_DIR / "providers.json"
+        if legacy_path.exists() and legacy_path.is_file():
+            with open(legacy_path, "r", encoding="utf-8") as f:
+                legacy_data = json.load(f)
+            builtin_providers = legacy_data.get("providers", {})
+            custom_providers = legacy_data.get("custom_providers", {})
+            active_model = legacy_data.get("active_llm", {})
+            # Migrate built-in providers
+            for provider_id, config in builtin_providers.items():
+                provider = self.get_provider(provider_id)
+                if not provider:
+                    logger.warning(
+                        f"Legacy provider '{provider_id}' not found in"
+                        " registry, skipping migration for this provider.",
+                    )
+                    continue
+                if "api_key" in config:
+                    provider.api_key = config["api_key"]
+                self.save_provider(provider, is_builtin=True)
+            # Migrate custom providers
+            for provider_id, data in custom_providers.items():
+                custom_provider = OpenAIProvider(
+                    id=provider_id,
+                    name=data.get("name", provider_id),
+                    base_url=data.get("base_url", ""),
+                    api_key=data.get("api_key", ""),
+                )
+                self.save_provider(custom_provider, is_builtin=False)
+            # Migrate active model
+            if active_model:
+                try:
+                    self.active_model = ModelSlotConfig.model_validate(
+                        active_model,
+                    )
+                except Exception:
+                    logger.warning(
+                        "Failed to migrate active model, using default.",
+                    )
+            # Remove legacy file after migration
+            try:
+                os.remove(legacy_path)
+            except Exception:
+                logger.warning(
+                    "Failed to remove legacy providers.json after migration.",
+                )
+
+    def _load_from_storage(self):
+        """Load all providers and active model from disk storage."""
+        # Load built-in providers
+        for builtin in self.builtin_providers.values():
+            provider = self.load_provider(builtin.id, is_builtin=True)
+            if provider:
+                builtin.base_url = provider.base_url
+                builtin.api_key = provider.api_key
+        # Load custom providers
+        for provider_file in self.custom_path.glob("*.json"):
+            provider = self.load_provider(provider_file.stem, is_builtin=False)
+            if provider:
+                self.custom_providers[provider.id] = provider
+        # Load active model config
+        active_model = self.load_active_model()
+        if active_model:
+            self.active_model = active_model
+
+    def _update_local_models(self):
+        """Update the model list of a local provider."""
+        try:
+            from ..local_models.manager import list_local_models
+            from ..local_models.schema import BackendType
+
+            llamacpp_models: list[ModelInfo] = []
+            mlx_models: list[ModelInfo] = []
+
+            for model in list_local_models():
+                info = ModelInfo(id=model.id, name=model.display_name)
+                if model.backend == BackendType.LLAMACPP:
+                    llamacpp_models.append(info)
+                elif model.backend == BackendType.MLX:
+                    mlx_models.append(info)
+            PROVIDER_LLAMACPP.models = llamacpp_models
+            PROVIDER_MLX.models = mlx_models
+        except ImportError:
+            # local_models dependencies not installed; leave model lists empty
+            pass
