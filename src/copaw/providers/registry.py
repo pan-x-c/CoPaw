@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from typing import TYPE_CHECKING, List, Optional, Type
 
@@ -147,7 +148,7 @@ PROVIDER_OLLAMA = ProviderDefinition(
     # Ollama uses `OLLAMA_HOST` env var as its BASE URL
     # TODO: auto detect ollama base url and display in UI
     # TODO: override `OLLAMA_HOST` with the detected/configured URL
-    default_base_url="http://localhost:11434/v1",
+    default_base_url=os.environ.get("OLLAMA_HOST") or "http://localhost:11434/v1",
     api_key_prefix="",
     models=[],
 )
