@@ -3,8 +3,13 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List
 
+try:
+    import ollama
+except ImportError:
+    ollama = None  # type: ignore
 
 from copaw.providers.provider import ModelInfo, Provider
 
@@ -12,16 +17,20 @@ from copaw.providers.provider import ModelInfo, Provider
 class OllamaProvider(Provider):
     """Provider implementation for Ollama local LLM hosting platform."""
 
+    def __post_init__(self) -> None:
+        if not self.base_url:  # type: ignore
+            self.base_url = (
+                os.environ.get("OLLAMA_HOST") or "http://localhost:11434"
+            )
+
     def _client(self, timeout: float = 5):
-        try:
-            import ollama
-        except ImportError as e:
+        if ollama is None:
             raise ImportError(
                 "The 'ollama' Python package is required. You may have "
                 "installed Ollama via their CLI or desktop app, but you "
                 "also need the Python SDK to manage models from CoPaw. "
                 "Please install it with: pip install 'copaw[ollama]'",
-            ) from e
+            )
         return ollama.AsyncClient(host=self.base_url, timeout=timeout)
 
     @staticmethod

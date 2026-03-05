@@ -16,10 +16,10 @@ class Provider(BaseModel, ABC):
 
     id: str = Field(..., description="Provider identifier")
     name: str = Field(..., description="Human-readable provider name")
-    base_url: str = Field(..., description="API base URL")
-    api_key: str = Field(..., description="API key for authentication")
+    base_url: str = Field(default="", description="API base URL")
+    api_key: str = Field(default="", description="API key for authentication")
     chat_model: str = Field(
-        ...,
+        default="OpenAIChatModel",
         description="Chat model class name (e.g., 'OpenAIChatModel')",
     )
     models: List[ModelInfo] = Field(
@@ -36,6 +36,14 @@ class Provider(BaseModel, ABC):
             "Environment variable name to override base URL "
             "(e.g., 'OLLAMA_HOST')"
         ),
+    )
+    is_local: bool = Field(
+        default=False,
+        description="Whether this provider is for a local hosting platform",
+    )
+    is_custom: bool = Field(
+        default=False,
+        description=("Whether this provider is user-created (not built-in)."),
     )
 
     @abstractmethod
@@ -73,3 +81,23 @@ class Provider(BaseModel, ABC):
         raise NotImplementedError(
             "This provider does not support deleting models.",
         )
+
+
+class DefaultProvider(Provider):
+    """Default provider implementation with no-op methods."""
+
+    async def check_connection(self, timeout: float = 5) -> bool:
+        return len(self.models) > 0
+
+    async def fetch_models(self, timeout: float = 5) -> List[ModelInfo]:
+        return self.models
+
+    async def check_model_connection(
+        self,
+        model_id: str,
+        timeout: float = 5,
+    ) -> bool:
+        return model_id in {model.id for model in self.models}
+
+    async def update_config(self, config: Dict) -> None:
+        pass

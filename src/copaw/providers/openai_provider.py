@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List
 
 from openai import APIError, AsyncOpenAI
@@ -11,6 +12,15 @@ from copaw.providers.provider import ModelInfo, Provider
 
 
 class OpenAIProvider(Provider):
+    def __post_init__(self) -> None:
+        if not self.api_key:  # type: ignore
+            self.api_key = os.environ.get("OPENAI_API_KEY", "")
+        if not self.base_url:  # type: ignore
+            self.base_url = os.environ.get(
+                "OPENAI_BASE_URL",
+                "https://api.openai.com/v1",
+            )
+
     def _client(self, timeout: float = 5) -> AsyncOpenAI:
         return AsyncOpenAI(
             base_url=self.base_url,
@@ -95,22 +105,6 @@ class OpenAIProvider(Provider):
             and config["base_url_env_var"] is not None
         ):
             self.base_url_env_var = str(config["base_url_env_var"])
-
-    async def add_model(
-        self,
-        model_info: ModelInfo,
-        timeout: float = 10,
-    ) -> None:
-        """Add a model to the provider's model list."""
-        raise NotImplementedError(
-            "This provider does not support adding models.",
-        )
-
-    async def delete_model(self, model_id: str, timeout: float = 10) -> None:
-        """Delete a model from the provider's model list."""
-        raise NotImplementedError(
-            "This provider does not support deleting models.",
-        )
 
 
 if __name__ == "__main__":
