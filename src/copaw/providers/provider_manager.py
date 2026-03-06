@@ -192,7 +192,10 @@ class ProviderManager:
         self.custom_path = self.root_path / "custom"
         self._prepare_disk_storage()
         self._init_builtins()
-        self._migrate_legacy_providers()
+        try:
+            self._migrate_legacy_providers()
+        except Exception as e:
+            logger.warning("Failed to migrate legacy providers: %s", e)
         self._init_from_storage()
         self.update_local_models()
 
@@ -323,7 +326,7 @@ class ProviderManager:
         provider = self.get_provider(provider_id)
         if not provider:
             raise ValueError(f"Provider '{provider_id}' not found.")
-        if not any(model.id == model_id for model in provider.models):
+        if not provider.has_model(model_id):
             raise ValueError(
                 f"Model '{model_id}' not found in provider '{provider_id}'.",
             )
@@ -336,6 +339,36 @@ class ProviderManager:
             model=model_id,
         )
         self.save_active_model(self.active_model)
+
+    async def add_model_to_provider(
+        self,
+        provider_id: str,
+        model_info: ModelInfo,
+    ) -> ProviderInfo:
+        provider = self.get_provider(provider_id)
+        if not provider:
+            raise ValueError(f"Provider '{provider_id}' not found.")
+        await provider.add_model(model_info)
+        self._save_provider(
+            provider,
+            is_builtin=provider_id in self.builtin_providers,
+        )
+        return await provider.get_info()
+
+    async def delete_model_from_provider(
+        self,
+        provider_id: str,
+        model_id: str,
+    ) -> ProviderInfo:
+        provider = self.get_provider(provider_id)
+        if not provider:
+            raise ValueError(f"Provider '{provider_id}' not found.")
+        await provider.delete_model(model_id=model_id)
+        self._save_provider(
+            provider,
+            is_builtin=provider_id in self.builtin_providers,
+        )
+        return await provider.get_info()
 
     def _save_provider(
         self,
@@ -350,6 +383,10 @@ class ProviderManager:
             return
         with open(provider_path, "w", encoding="utf-8") as f:
             json.dump(provider.model_dump(), f, ensure_ascii=False, indent=2)
+        try:
+            os.chmod(provider_path, 0o600)
+        except OSError:
+            pass
 
     def load_provider(
         self,
@@ -397,6 +434,10 @@ class ProviderManager:
                 ensure_ascii=False,
                 indent=2,
             )
+        try:
+            os.chmod(active_path, 0o600)
+        except OSError:
+            pass
 
     def load_active_model(self) -> ModelSlotConfig | None:
         """Load the active provider/model configuration from disk."""

@@ -100,7 +100,6 @@ RUNNING_IN_CONTAINER = EnvVarLoader.get_bool(
 )
 
 # Timeout in seconds for checking if a provider is reachable.
-# TODO: add a module to parse and validate env vars
 MODEL_PROVIDER_CHECK_TIMEOUT = EnvVarLoader.get_float(
     "COPAW_MODEL_PROVIDER_CHECK_TIMEOUT",
     5.0,

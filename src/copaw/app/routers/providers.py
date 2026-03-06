@@ -77,7 +77,7 @@ async def configure_provider(
         if not ok:
             raise ValueError(f"Provider '{provider_id}' not found")
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return await manager.get_provider_info(provider_id)
 
@@ -288,18 +288,13 @@ async def add_model_endpoint(
 ) -> ProviderInfo:
     manager = request.app.state.provider_manager
     try:
-        provider = manager.get_provider(
-            provider_id,
-        )  # Validate provider exists
-        if provider is None:
-            raise ValueError(f"Provider '{provider_id}' not found")
-        await provider.add_model(
-            provider_id,
-            ModelInfo(id=body.id, name=body.name),
-        )
+        provider = manager.add_model_to_provider(
+            provider_id=provider_id,
+            model_info=ModelInfo(id=body.id, name=body.name),
+        )  # Validate provider exists and add model
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return await provider.get_info()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return await provider
 
 
 @router.delete(
@@ -314,15 +309,13 @@ async def remove_model_endpoint(
 ) -> ProviderInfo:
     manager = request.app.state.provider_manager
     try:
-        provider = manager.get_provider(
-            provider_id,
-        )  # Validate provider exists
-        if provider is None:
-            raise ValueError(f"Provider '{provider_id}' not found")
-        await provider.delete_model(model_id=model_id)
+        provider = manager.delete_model_from_provider(
+            provider_id=provider_id,
+            model_id=model_id,
+        )  # Validate provider and model exist and delete
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return await provider.get_info()
+    return await provider
 
 
 @router.get(

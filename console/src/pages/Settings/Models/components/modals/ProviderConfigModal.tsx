@@ -44,9 +44,6 @@ export function ProviderConfigModal({
   const [form] = Form.useForm<ProviderConfigRequest>();
   const selectedChatModel = Form.useWatch("chat_model", form);
   const canEditBaseUrl = !provider.freeze_url;
-  console.log("Provider Name:", provider.name);
-  console.log("Provider freeze_url:", provider.freeze_url);
-  console.log("Can Edit Base URL:", canEditBaseUrl);
 
   const effectiveChatModel = useMemo(() => {
     if (!provider.is_custom) {

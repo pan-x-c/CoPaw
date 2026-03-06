@@ -132,6 +132,12 @@ class Provider(ProviderInfo, ABC):
             )
         return chat_model_cls
 
+    def has_model(self, model_id: str) -> bool:
+        """Check if the provider has a model with the given ID."""
+        return any(
+            model.id == model_id for model in self.models + self.extra_models
+        )
+
     @abstractmethod
     def get_chat_model_instance(self, model_id: str) -> ChatModelBase:
         """Return an instance of the chat model associated with this
