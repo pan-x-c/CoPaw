@@ -257,11 +257,13 @@ class ProviderManager:
         )
         return True
 
-    async def fetch_provider_models(self, provider_id: str, update_target: str | None = None) -> List[ModelInfo]:
-        # Fetch the list of available models from a provider. This will be called
-        # when the user wants to see which models are available for a provider,
-        # or when activating a model to ensure it exists. It should return the
-        # list of models or None if the provider is not found.
+    async def fetch_provider_models(
+        self,
+        provider_id: str,
+        update_target: str | None = None,
+    ) -> List[ModelInfo]:
+        """Fetch the list of available models from a provider and optionally
+        update the provider's model list in memory and on disk."""
         provider = self.get_provider(provider_id)
         if not provider:
             return []
@@ -270,7 +272,9 @@ class ProviderManager:
             if update_target == "models":
                 provider.models = models  # Update the provider's model list
             elif update_target == "extra_models":
-                provider.extra_models = models  # Update the provider's extra model list
+                provider.extra_models = (
+                    models  # Update the provider's extra model list
+                )
             self._save_provider(
                 provider,
                 is_builtin=provider_id in self.builtin_providers,

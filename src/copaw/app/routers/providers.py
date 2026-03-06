@@ -156,7 +156,10 @@ class DiscoverModelsResponse(BaseModel):
         default_factory=list,
         description="Discovered models",
     )
-    message: str = Field(default="", description="Human-readable result message")
+    message: str = Field(
+        default="",
+        description="Human-readable result message",
+    )
     added_count: int = Field(
         default=0,
         description="How many new models were added into provider config",
@@ -215,9 +218,12 @@ async def discover_models(
             },
         )
         try:
-            result = await manager.fetch_provider_models(provider_id)
+            result = await manager.fetch_provider_models(
+                provider_id,
+                update_target="models",
+            )
             success = True
-        except Exception as exc:
+        except Exception:
             result = []
             success = False
         return DiscoverModelsResponse(success=success, models=result)

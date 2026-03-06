@@ -22,7 +22,7 @@ interface RemoteModelManageModalProps {
   provider: ProviderInfo;
   open: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: () => void | Promise<void>;
 }
 
 export function RemoteModelManageModal({
@@ -69,7 +69,7 @@ export function RemoteModelManageModal({
       message.success(t("models.modelAdded", { name }));
       form.resetFields();
       setAdding(false);
-      onSaved();
+      await onSaved();
     } catch (error) {
       if (error && typeof error === "object" && "errorFields" in error) return;
       const errMsg =
@@ -116,7 +116,7 @@ export function RemoteModelManageModal({
         try {
           await api.removeModel(provider.id, modelId);
           message.success(t("models.modelRemoved", { name: modelName }));
-          onSaved();
+          await onSaved();
         } catch (error) {
           const errMsg =
             error instanceof Error
@@ -150,9 +150,9 @@ export function RemoteModelManageModal({
             added: result.added_count,
           }),
         );
-        onSaved();
+        await onSaved();
       } else if (result.models.length > 0) {
-        provider.models = result.models; // Update local model list with discovered models
+        await onSaved();
         message.info(
           t("models.autoDiscoveredNoNew", { count: result.models.length }),
         );
@@ -171,7 +171,7 @@ export function RemoteModelManageModal({
   };
 
   useEffect(() => {
-    // Do not auto-discover models when modal opens, as it may take some time and we don't want to block the UI. 
+    // Do not auto-discover models when modal opens, as it may take some time and we don't want to block the UI.
     // Instead, users can click the "Discover Models" button to trigger discovery when needed.
   }, [open, canDiscover, provider.id, provider.models.length]);
 

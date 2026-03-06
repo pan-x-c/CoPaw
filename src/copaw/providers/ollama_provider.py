@@ -160,30 +160,3 @@ class OllamaProvider(Provider):
             is_custom=self.is_custom,
             freeze_url=self.freeze_url,
         )
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    provider = OllamaProvider(
-        id="ollama",
-        name="Ollama",
-        base_url="http://localhost:11434",
-        api_key="EMPTY",
-        chat_model="OllamaChatModel",
-    )
-
-    async def main():
-        print("Checking connection...")
-        connected = await provider.check_connection()
-        print("Connected:", connected)
-
-        if connected:
-            print("Fetching models...")
-            models = await provider.fetch_models()
-            print(f"Found {len(models)} models:")
-            for model in models:
-                await provider.check_model_connection(model.id)
-                print(f"- {model.id}: {model.name}")
-
-    asyncio.run(main())

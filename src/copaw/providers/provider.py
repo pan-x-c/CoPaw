@@ -77,7 +77,9 @@ class Provider(ProviderInfo, ABC):
         timeout: float = 10,  # pylint: disable=unused-argument
     ) -> bool:
         """Add a model to the provider's model list."""
-        if model_info.id in {model.id for model in self.models + self.extra_models}:
+        if model_info.id in {
+            model.id for model in self.models + self.extra_models
+        }:
             raise ValueError(f"Model with id '{model_info.id}' already exists")
         self.extra_models.append(model_info)
         return True

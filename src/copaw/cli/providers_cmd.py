@@ -35,7 +35,7 @@ def _save_provider(manager: ProviderManager, provider_id: str) -> None:
     provider = manager.get_provider(provider_id)
     if provider is None:
         return
-    manager._save_provider(
+    manager._save_provider(  # pylint: disable=protected-access
         provider,
         is_builtin=provider_id in manager.builtin_providers,
     )
@@ -119,7 +119,8 @@ def configure_provider_api_key_interactive(
     # (e.g. Azure OpenAI requires user to provide their endpoint).
     if defn.is_custom or provider_id == "azure-openai" or not current_base:
         azure_hint = (
-            "Azure endpoint " "(e.g. https://<resource>.openai.azure.com/openai/v1)"
+            "Azure endpoint "
+            "(e.g. https://<resource>.openai.azure.com/openai/v1)"
         )
         url_hint = (
             azure_hint
@@ -135,7 +136,9 @@ def configure_provider_api_key_interactive(
             click.echo(click.style("Error: base_url is required.", fg="red"))
             raise SystemExit(1)
 
-    hint = f"prefix: {defn.api_key_prefix}" if defn.api_key_prefix else "optional"
+    hint = (
+        f"prefix: {defn.api_key_prefix}" if defn.api_key_prefix else "optional"
+    )
     api_key = click.prompt(
         f"API key ({hint})",
         default=current_key or "",
@@ -245,7 +248,11 @@ def _filter_eligible(all_providers: list[Provider]) -> list[Provider]:
 
 def _select_llm_model(defn, pid, current_slot, *, use_defaults):
     """Pick a model for the given provider. Returns model id."""
-    cur = current_slot.model if current_slot and current_slot.provider_id == pid else ""
+    cur = (
+        current_slot.model
+        if current_slot and current_slot.provider_id == pid
+        else ""
+    )
 
     extra = list(defn.extra_models)
     all_models = list(defn.models) + extra
@@ -402,7 +409,13 @@ def list_cmd() -> None:
     for defn in _all_provider_objects(manager):
         cur_url, cur_key = defn.base_url, defn.api_key
 
-        tag = " [custom]" if defn.is_custom else " [local]" if defn.is_local else ""
+        tag = (
+            " [custom]"
+            if defn.is_custom
+            else " [local]"
+            if defn.is_local
+            else ""
+        )
         click.echo(f"\n{'─' * 44}")
         click.echo(f"  {defn.name} ({defn.id}){tag}")
         click.echo(f"{'─' * 44}")
@@ -419,7 +432,8 @@ def list_cmd() -> None:
         else:
             click.echo(f"  {'base_url':16s}: {cur_url or '(not set)'}")
             click.echo(
-                f"  {'api_key':16s}: " f"{_mask_api_key(cur_key) or '(not set)'}",
+                f"  {'api_key':16s}: "
+                f"{_mask_api_key(cur_key) or '(not set)'}",
             )
             if defn.api_key_prefix:
                 click.echo(
@@ -490,7 +504,7 @@ def add_provider_cmd(
                     is_custom=True,
                     chat_model="OpenAIChatModel",
                 ),
-            )
+            ),
         )
     except ValueError as exc:
         click.echo(click.style(f"Error: {exc}", fg="red"))

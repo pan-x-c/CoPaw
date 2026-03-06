@@ -105,30 +105,3 @@ class AnthropicProvider(Provider):
             api_key=self.api_key,
             client_kwargs={"base_url": self.base_url},
         )
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    provider = AnthropicProvider(
-        id="anthropic",
-        name="Anthropic",
-        base_url="http://101.37.165.227:8081",
-        api_key="EMPTY",
-        chat_model="AnthropicChatModel",
-    )
-
-    async def main():
-        print("Checking connection...")
-        connected = await provider.check_connection()
-        print("Connected:", connected)
-
-        if connected:
-            print("Fetching models...")
-            models = await provider.fetch_models()
-            print(f"Found {len(models)} models:")
-            for model in models:
-                await provider.check_model_connection(model.id)
-                print(f"- {model.id}: {model.name}")
-
-    asyncio.run(main())

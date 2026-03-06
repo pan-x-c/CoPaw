@@ -9,11 +9,10 @@ from typing import Any, List
 from agentscope.model import ChatModelBase
 from openai import APIError, AsyncOpenAI
 
-from copaw.providers.provider import ModelInfo, Provider, ProviderInfo
+from copaw.providers.provider import ModelInfo, Provider
 
 
 class OpenAIProvider(Provider):
-
     def model_post_init(self, __context: Any) -> None:
         if not self.api_key:  # type: ignore
             self.api_key = os.environ.get("OPENAI_API_KEY", "")
@@ -98,30 +97,3 @@ class OpenAIProvider(Provider):
             api_key=self.api_key,
             client_kwargs={"base_url": self.base_url},
         )
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    provider = OpenAIProvider(
-        id="openai",
-        name="OpenAI",
-        base_url="http://101.37.165.227:8081/v1",
-        api_key="sk-empty",
-        chat_model="OpenAIChatModel",
-    )
-
-    async def main():
-        print("Checking connection...")
-        connected = await provider.check_connection()
-        print("Connected:", connected)
-
-        if connected:
-            print("Fetching models...")
-            models = await provider.fetch_models()
-            print(f"Found {len(models)} models:")
-            for model in models:
-                await provider.check_model_connection(model.id)
-                print(f"- {model.id}: {model.name}")
-
-    asyncio.run(main())

@@ -161,11 +161,11 @@ async def list_ollama_models(
 
     If the Ollama SDK is not installed, returns HTTP 501.
     """
-    ollama_provider = request.app.state.provider_manager.get_provider(
+    p = request.app.state.provider_manager.get_provider(
         PROVIDER_OLLAMA.id,
     )
     try:
-        models = await ollama_provider._client().list()
+        models = await p._client().list()  # pylint: disable=protected-access
     except ImportError as exc:
         raise HTTPException(
             status_code=501,
