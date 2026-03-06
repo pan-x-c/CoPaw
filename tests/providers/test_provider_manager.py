@@ -22,7 +22,7 @@ def isolated_secret_dir(monkeypatch, tmp_path):
     return secret_dir
 
 
-def test_add_custom_provider_and_reload_from_storage(
+async def test_add_custom_provider_and_reload_from_storage(
     isolated_secret_dir,
 ) -> None:
     manager = ProviderManager()
@@ -34,7 +34,7 @@ def test_add_custom_provider_and_reload_from_storage(
         models=[ModelInfo(id="custom-model", name="Custom Model")],
     )
 
-    manager.add_custom_provider(custom)
+    await manager.add_custom_provider(custom)
 
     reloaded = ProviderManager()
     loaded = reloaded.get_provider("custom-openai")
@@ -77,7 +77,7 @@ async def test_activate_provider_persists_active_model(
     assert reloaded.active_model.model == "gpt-5"
 
 
-def test_remove_custom_provider_missing_file_is_safe(
+async def test_remove_custom_provider_missing_file_is_safe(
     isolated_secret_dir,
 ) -> None:
     manager = ProviderManager()
@@ -87,7 +87,7 @@ def test_remove_custom_provider_missing_file_is_safe(
         base_url="https://remove.example/v1",
         api_key="sk-remove",
     )
-    manager.add_custom_provider(custom)
+    await manager.add_custom_provider(custom)
 
     custom_path = manager.custom_path / "custom-to-remove.json"
     custom_path.unlink()
@@ -158,7 +158,7 @@ def test_migrate_legacy_file_and_persist_active_model(
     assert active_model_file.exists()
 
 
-def test_add_custom_provider_conflict_with_builtin_raises(
+async def test_add_custom_provider_conflict_with_builtin_raises(
     isolated_secret_dir,
 ) -> None:
     manager = ProviderManager()
@@ -168,7 +168,7 @@ def test_add_custom_provider_conflict_with_builtin_raises(
     )
 
     with pytest.raises(ValueError, match="conflicts with a built-in provider"):
-        manager.add_custom_provider(conflict)
+        await manager.add_custom_provider(conflict)
 
 
 def test_update_provider_for_builtin_persists_to_builtin_path(
@@ -243,11 +243,11 @@ def test_save_provider_skip_if_exists_does_not_overwrite(
         name="Original",
         api_key="sk-original",
     )
-    manager.save_provider(provider, is_builtin=False)
+    manager._save_provider(provider, is_builtin=False)
 
     provider.name = "Changed"
     provider.api_key = "sk-changed"
-    manager.save_provider(provider, is_builtin=False, skip_if_exists=True)
+    manager._save_provider(provider, is_builtin=False, skip_if_exists=True)
 
     loaded = manager.load_provider("custom-skip", is_builtin=False)
     assert loaded is not None

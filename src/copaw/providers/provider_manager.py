@@ -130,7 +130,6 @@ PROVIDER_MLX = DefaultProvider(
 PROVIDER_OPENAI = OpenAIProvider(
     id="openai",
     name="OpenAI",
-    base_url="https://api.openai.com/v1",
     api_key_prefix="sk-",
     models=OPENAI_MODELS,
     freeze_url=True,
@@ -146,7 +145,6 @@ PROVIDER_AZURE_OPENAI = OpenAIProvider(
 PROVIDER_ANTHROPIC = AnthropicProvider(
     id="anthropic",
     name="Anthropic",
-    base_url="https://api.anthropic.com",
     api_key_prefix="sk-ant-",
     models=ANTHROPIC_MODELS,
     chat_model="AnthropicChatModel",
@@ -169,6 +167,10 @@ class ModelSlotConfig(BaseModel):
         ...,
         description="ID of the model to use for this model slot",
     )
+
+
+class ActiveModelsInfo(BaseModel):
+    active_llm: ModelSlotConfig | None
 
 
 class ProviderManager:
@@ -215,12 +217,12 @@ class ProviderManager:
     def _add_builtin(self, provider: Provider):
         self.builtin_providers[provider.id] = provider
 
-    def list_provider_info(self) -> List[ProviderInfo]:
+    async def list_provider_info(self) -> List[ProviderInfo]:
         provider_infos = []
         for provider in self.builtin_providers.values():
-            provider_infos.append(provider.get_info())
+            provider_infos.append(await provider.get_info())
         for provider in self.custom_providers.values():
-            provider_infos.append(provider.get_info())
+            provider_infos.append(await provider.get_info())
         return provider_infos
 
     def get_provider(self, provider_id: str) -> Provider | None:
@@ -232,9 +234,9 @@ class ProviderManager:
             return self.custom_providers[provider_id]
         return None
 
-    def get_provider_info(self, provider_id: str) -> ProviderInfo | None:
+    async def get_provider_info(self, provider_id: str) -> ProviderInfo | None:
         provider = self.get_provider(provider_id)
-        return provider.get_info() if provider else None
+        return await provider.get_info() if provider else None
 
     def get_active_model(self) -> ModelSlotConfig | None:
         # Return the currently active provider/model configuration.
@@ -249,13 +251,40 @@ class ProviderManager:
         if not provider:
             return False
         provider.update_config(config)
-        self.save_provider(
+        self._save_provider(
             provider,
             is_builtin=provider_id in self.builtin_providers,
         )
         return True
 
-    def add_custom_provider(self, provider_data: ProviderInfo):
+    async def fetch_provider_models(self, provider_id: str, update_target: str | None = None) -> List[ModelInfo]:
+        # Fetch the list of available models from a provider. This will be called
+        # when the user wants to see which models are available for a provider,
+        # or when activating a model to ensure it exists. It should return the
+        # list of models or None if the provider is not found.
+        provider = self.get_provider(provider_id)
+        if not provider:
+            return []
+        try:
+            models = await provider.fetch_models()
+            if update_target == "models":
+                provider.models = models  # Update the provider's model list
+            elif update_target == "extra_models":
+                provider.extra_models = models  # Update the provider's extra model list
+            self._save_provider(
+                provider,
+                is_builtin=provider_id in self.builtin_providers,
+            )
+            return models
+        except Exception as e:
+            logger.warning(
+                "Failed to fetch models for provider '%s': %s",
+                provider_id,
+                e,
+            )
+            return []
+
+    async def add_custom_provider(self, provider_data: ProviderInfo):
         # Add a new custom provider with the given data. This will update the
         # providers.json file and make the new provider available in the UI.
         if provider_data.id in self.builtin_providers:
@@ -267,8 +296,8 @@ class ProviderManager:
             provider_data.model_dump(),
         )  # Validate provider data
         self.custom_providers[provider.id] = provider
-        self.save_provider(provider, is_builtin=False)
-        return provider.get_info()
+        self._save_provider(provider, is_builtin=False)
+        return await provider.get_info()
 
     def remove_custom_provider(self, provider_id: str) -> bool:
         # Remove a custom provider by its ID. This will update the
@@ -302,7 +331,7 @@ class ProviderManager:
         )
         self.save_active_model(self.active_model)
 
-    def save_provider(
+    def _save_provider(
         self,
         provider: Provider,
         is_builtin: bool = False,
@@ -404,7 +433,7 @@ class ProviderManager:
                         ModelInfo.model_validate(model)
                         for model in config["extra_models"]
                     ]
-                self.save_provider(provider, is_builtin=True)
+                self._save_provider(provider, is_builtin=True)
             # Migrate custom providers
             for provider_id, data in custom_providers.items():
                 custom_provider = OpenAIProvider(
@@ -418,7 +447,7 @@ class ProviderManager:
                         ModelInfo.model_validate(model)
                         for model in data["extra_models"]
                     ]
-                self.save_provider(custom_provider, is_builtin=False)
+                self._save_provider(custom_provider, is_builtin=False)
             # Migrate active model
             if active_model:
                 try:
@@ -490,23 +519,17 @@ class ProviderManager:
         """Get the currently active provider/model configuration."""
         manager = ProviderManager.get_instance()
         model = manager.get_active_model()
-        if model is None:
+        if model is None or model.provider_id == "" or model.model == "":
             raise ValueError("No active model configured.")
         provider = manager.get_provider(model.provider_id)
         if provider is None:
             raise ValueError(
                 f"Active provider '{model.provider_id}' not found.",
             )
-        chat_model_cls = provider.get_chat_model_cls()
         if provider.is_local:
             return create_local_chat_model(
                 model_id=model.model,
                 stream=True,
                 generate_kwargs={"max_tokens": None},
             )
-        return chat_model_cls(
-            model_name=model.model,
-            stream=True,
-            api_key=provider.api_key,
-            client_kwargs={"base_url": provider.base_url},
-        )
+        return provider.get_chat_model_instance(model.model)

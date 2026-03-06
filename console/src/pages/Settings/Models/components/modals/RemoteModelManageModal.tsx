@@ -37,11 +37,7 @@ export function RemoteModelManageModal({
   const [discovering, setDiscovering] = useState(false);
   const [testingModelId, setTestingModelId] = useState<string | null>(null);
   const [form] = Form.useForm();
-  // const canDiscover =
-  //   provider.id === "ollama" || provider.needs_base_url
-  //     ? !!provider.current_base_url
-  //     : !!provider.current_api_key;
-  const canDiscover = false;
+  const canDiscover = provider.is_custom;
 
   // For custom providers ALL models are deletable.
   // For built-in providers only extra_models are deletable.
@@ -154,14 +150,15 @@ export function RemoteModelManageModal({
             added: result.added_count,
           }),
         );
+        onSaved();
       } else if (result.models.length > 0) {
+        provider.models = result.models; // Update local model list with discovered models
         message.info(
           t("models.autoDiscoveredNoNew", { count: result.models.length }),
         );
       } else {
         message.info(result.message || t("models.noModels"));
       }
-      onSaved();
     } catch (error) {
       const errMsg =
         error instanceof Error
@@ -174,11 +171,8 @@ export function RemoteModelManageModal({
   };
 
   useEffect(() => {
-    if (!open || !canDiscover || provider.models.length > 0 || discovering) {
-      return;
-    }
-    void handleDiscoverModels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Do not auto-discover models when modal opens, as it may take some time and we don't want to block the UI. 
+    // Instead, users can click the "Discover Models" button to trigger discovery when needed.
   }, [open, canDiscover, provider.id, provider.models.length]);
 
   return (

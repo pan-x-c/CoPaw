@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 from typing import Any, List
 
+from agentscope.model import ChatModelBase
 import anthropic
 
 from copaw.providers.provider import ModelInfo, Provider
@@ -94,6 +95,16 @@ class AnthropicProvider(Provider):
             return True
         except anthropic.APIError:
             return False
+
+    def get_chat_model_instance(self, model_id: str) -> ChatModelBase:
+        from agentscope.model import AnthropicChatModel
+
+        return AnthropicChatModel(
+            model_name=model_id,
+            stream=True,
+            api_key=self.api_key,
+            client_kwargs={"base_url": self.base_url},
+        )
 
 
 if __name__ == "__main__":

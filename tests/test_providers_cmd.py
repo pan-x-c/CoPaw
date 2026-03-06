@@ -46,7 +46,7 @@ class FakeManager:
             if not provider.is_custom
         }
 
-    def list_provider_info(self):
+    async def list_provider_info(self):
         return [
             SimpleNamespace(id=provider_id) for provider_id in self._providers
         ]
@@ -77,7 +77,7 @@ class FakeManager:
     def get_active_model(self):
         return self._active
 
-    def save_provider(
+    def _save_provider(
         self,
         provider: FakeProvider,
         is_builtin: bool = False,

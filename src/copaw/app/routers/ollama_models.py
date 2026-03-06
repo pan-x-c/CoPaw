@@ -165,7 +165,7 @@ async def list_ollama_models(
         PROVIDER_OLLAMA.id,
     )
     try:
-        models = await ollama_provider.fetch_models()  # type: ignore
+        models = await ollama_provider._client().list()
     except ImportError as exc:
         raise HTTPException(
             status_code=501,
@@ -179,7 +179,15 @@ async def list_ollama_models(
             detail=f"Failed to list Ollama models: {exc}",
         ) from exc
 
-    return [OllamaModelResponse(**m.model_dump()) for m in models]
+    return [
+        OllamaModelResponse(
+            name=m.model,
+            size=m.size,
+            digest=m.digest,
+            modified_at=str(m.modified_at),
+        )
+        for m in models.models
+    ]
 
 
 @router.post(

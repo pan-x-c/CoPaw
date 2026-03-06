@@ -11,7 +11,9 @@ try:
 except ImportError:
     ollama = None  # type: ignore
 
-from copaw.providers.provider import ModelInfo, Provider
+from agentscope.model import ChatModelBase
+
+from copaw.providers.provider import ModelInfo, Provider, ProviderInfo
 
 
 class OllamaProvider(Provider):
@@ -44,7 +46,12 @@ class OllamaProvider(Provider):
             model_name = model_id
             if not model_id:
                 continue
-            models.append(ModelInfo(id=model_id, name=model_name))
+            models.append(
+                ModelInfo(
+                    id=model_id,
+                    name=model_name,
+                ),
+            )
 
         deduped: List[ModelInfo] = []
         seen: set[str] = set()
@@ -121,6 +128,38 @@ class OllamaProvider(Provider):
             ) from e
         self.models = await self.fetch_models()
         return True
+
+    def get_chat_model_instance(self, model_id: str) -> ChatModelBase:
+        from agentscope.model import OpenAIChatModel
+
+        if self.base_url.endswith("/"):
+            openai_compatible_url = self.base_url[:-1] + "/v1"
+        else:
+            openai_compatible_url = self.base_url + "/v1"
+        return OpenAIChatModel(
+            model_name=model_id,
+            stream=True,
+            api_key=self.api_key,
+            client_kwargs={"base_url": openai_compatible_url},
+        )
+
+    async def get_info(self, mock_secret: bool = True) -> ProviderInfo:
+        self.models = await self.fetch_models()
+        return ProviderInfo(
+            id=self.id,
+            name=self.name,
+            base_url=self.base_url,
+            api_key=self.api_key_prefix + "*" * 6
+            if mock_secret
+            else self.api_key,
+            chat_model=self.chat_model,
+            models=self.models,
+            extra_models=self.extra_models,
+            api_key_prefix=self.api_key_prefix,
+            is_local=self.is_local,
+            is_custom=self.is_custom,
+            freeze_url=self.freeze_url,
+        )
 
 
 if __name__ == "__main__":

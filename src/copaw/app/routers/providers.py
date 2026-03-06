@@ -9,15 +9,11 @@ from fastapi import APIRouter, Body, HTTPException, Path, Request
 from pydantic import BaseModel, Field
 
 from ...providers.provider import ProviderInfo, ModelInfo
-from ...providers.provider_manager import ModelSlotConfig
+from ...providers.provider_manager import ActiveModelsInfo
 
 router = APIRouter(prefix="/models", tags=["models"])
 
 ChatModelName = Literal["OpenAIChatModel", "AnthropicChatModel"]
-
-
-class ActiveModelsInfo(BaseModel):
-    active_llm: ModelSlotConfig | None
 
 
 class ProviderConfigRequest(BaseModel):
@@ -54,7 +50,7 @@ class AddModelRequest(BaseModel):
     summary="List all providers",
 )
 async def list_all_providers(request: Request) -> List[ProviderInfo]:
-    return request.app.state.provider_manager.list_provider_info()
+    return await request.app.state.provider_manager.list_provider_info()
 
 
 @router.put(
@@ -83,7 +79,7 @@ async def configure_provider(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return manager.get_provider_info(provider_id)
+    return await manager.get_provider_info(provider_id)
 
 
 @router.post(
@@ -99,7 +95,7 @@ async def create_custom_provider_endpoint(
     manager = request.app.state.provider_manager
 
     try:
-        provider_info = manager.add_custom_provider(
+        provider_info = await manager.add_custom_provider(
             ProviderInfo(
                 id=body.id,
                 name=body.name,
@@ -156,11 +152,11 @@ class DiscoverModelsRequest(BaseModel):
 
 class DiscoverModelsResponse(BaseModel):
     success: bool = Field(..., description="Whether discovery succeeded")
-    message: str = Field(..., description="Human-readable result message")
     models: List[ModelInfo] = Field(
         default_factory=list,
         description="Discovered models",
     )
+    message: str = Field(default="", description="Human-readable result message")
     added_count: int = Field(
         default=0,
         description="How many new models were added into provider config",
@@ -218,11 +214,13 @@ async def discover_models(
                 "base_url": body.base_url if body else None,
             },
         )
-        provider = manager.get_provider(provider_id)
-        if provider is None:
-            raise ValueError(f"Provider '{provider_id}' not found")
-        result = await provider.fetch_models()
-        return DiscoverModelsResponse(**result)
+        try:
+            result = await manager.fetch_provider_models(provider_id)
+            success = True
+        except Exception as exc:
+            result = []
+            success = False
+        return DiscoverModelsResponse(success=success, models=result)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -268,7 +266,7 @@ async def delete_custom_provider_endpoint(
             raise ValueError(f"Custom Provider '{provider_id}' not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return manager.list_provider_info()
+    return await manager.list_provider_info()
 
 
 @router.post(
@@ -295,7 +293,7 @@ async def add_model_endpoint(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return provider.get_info()
+    return await provider.get_info()
 
 
 @router.delete(
@@ -318,7 +316,7 @@ async def remove_model_endpoint(
         await provider.delete_model(model_id=model_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return provider.get_info()
+    return await provider.get_info()
 
 
 @router.get(

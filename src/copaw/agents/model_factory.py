@@ -11,7 +11,7 @@ Example:
 
 
 import logging
-from typing import TYPE_CHECKING, Sequence, Tuple, Type, Any
+from typing import Sequence, Tuple, Type, Any
 from functools import wraps
 
 from agentscope.formatter import FormatterBase, OpenAIChatFormatter
@@ -61,8 +61,6 @@ def _monkey_patch(func):
 if agentscope.__version__ in ["1.0.16dev", "1.0.16"]:
     OpenAIChatFormatter.format = _monkey_patch(OpenAIChatFormatter.format)
 
-if TYPE_CHECKING:
-    from ..providers import ResolvedModelConfig
 
 logger = logging.getLogger(__name__)
 

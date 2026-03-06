@@ -6,12 +6,14 @@ from __future__ import annotations
 import os
 from typing import Any, List
 
+from agentscope.model import ChatModelBase
 from openai import APIError, AsyncOpenAI
 
-from copaw.providers.provider import ModelInfo, Provider
+from copaw.providers.provider import ModelInfo, Provider, ProviderInfo
 
 
 class OpenAIProvider(Provider):
+
     def model_post_init(self, __context: Any) -> None:
         if not self.api_key:  # type: ignore
             self.api_key = os.environ.get("OPENAI_API_KEY", "")
@@ -86,6 +88,16 @@ class OpenAIProvider(Provider):
             return True
         except APIError:
             return False
+
+    def get_chat_model_instance(self, model_id: str) -> ChatModelBase:
+        from agentscope.model import OpenAIChatModel
+
+        return OpenAIChatModel(
+            model_name=model_id,
+            stream=True,
+            api_key=self.api_key,
+            client_kwargs={"base_url": self.base_url},
+        )
 
 
 if __name__ == "__main__":
