@@ -24,6 +24,10 @@ class OllamaProvider(Provider):
             self.base_url = (
                 os.environ.get("OLLAMA_HOST") or "http://localhost:11434"
             )
+        if self.base_url.endswith("/v1"):
+            # For backwards compatibility, if the URL ends with /v1,
+            # we strip it to get the base URL
+            self.base_url = self.base_url[:-3]
 
     def _client(self, timeout: float = 5):
         if ollama is None:

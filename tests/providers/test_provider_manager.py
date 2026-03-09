@@ -201,7 +201,7 @@ def test_migrate_legacy_file_and_persist_active_model(
     assert legacy_custom.api_key == "sk-test-legacy-custom-secret"
 
     legacy_ollama = manager.get_provider("ollama")
-    assert legacy_ollama.base_url == "http://myhost:11434/v1"
+    assert legacy_ollama.base_url == "http://myhost:11434"
 
     active_model_file = isolated_secret_dir / "providers" / "active_model.json"
     assert active_model_file.exists()

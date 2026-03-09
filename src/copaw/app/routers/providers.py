@@ -103,7 +103,7 @@ async def create_custom_provider_endpoint(
                 base_url=body.default_base_url,
                 api_key_prefix=body.api_key_prefix,
                 chat_model=body.chat_model,
-                models=body.models,
+                extra_models=body.models,
             ),
         )
     except ValueError as exc:
@@ -210,13 +210,18 @@ async def discover_models(
 ) -> DiscoverModelsResponse:
     manager = request.app.state.provider_manager
     try:
-        manager.update_provider(
+        ok = manager.update_provider(
             provider_id,
             {
                 "api_key": body.api_key if body else None,
                 "base_url": body.base_url if body else None,
             },
         )
+        if not ok:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Provider '{provider_id}' not found",
+            )
         try:
             result = await manager.fetch_provider_models(
                 provider_id,
