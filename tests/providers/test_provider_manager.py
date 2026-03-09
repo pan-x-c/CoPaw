@@ -105,7 +105,8 @@ async def test_add_custom_provider_and_reload_from_storage(
         )
 
     with pytest.raises(
-        ValueError, match="Custom provider 'custom-openai' already exists"
+        ValueError,
+        match="Custom provider 'custom-openai' already exists",
     ):
         await manager.add_custom_provider(custom)
 

@@ -6,15 +6,27 @@ from __future__ import annotations
 from typing import List, Literal, Optional
 from copy import deepcopy
 
-from fastapi import APIRouter, Body, HTTPException, Path, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request
 from pydantic import BaseModel, Field
 
 from ...providers.provider import ProviderInfo, ModelInfo
-from ...providers.provider_manager import ActiveModelsInfo
+from ...providers.provider_manager import ActiveModelsInfo, ProviderManager
 
 router = APIRouter(prefix="/models", tags=["models"])
 
 ChatModelName = Literal["OpenAIChatModel", "AnthropicChatModel"]
+
+
+def get_provider_manager(request: Request) -> ProviderManager:
+    """Get the provider manager from app state.
+
+    Args:
+        request: FastAPI request object
+    """
+    provider_manager = getattr(request.app.state, "provider_manager", None)
+    if provider_manager is None:
+        provider_manager = ProviderManager.get_instance()
+    return provider_manager
 
 
 class ProviderConfigRequest(BaseModel):
@@ -204,11 +216,10 @@ async def test_provider(
     summary="Discover available models from provider",
 )
 async def discover_models(
-    request: Request,
+    manager: ProviderManager = Depends(get_provider_manager),
     provider_id: str = Path(...),
     body: Optional[DiscoverModelsRequest] = Body(default=None),
 ) -> DiscoverModelsResponse:
-    manager = request.app.state.provider_manager
     try:
         ok = manager.update_provider(
             provider_id,
@@ -242,12 +253,11 @@ async def discover_models(
     summary="Test a specific model",
 )
 async def test_model(
-    request: Request,
+    manager: ProviderManager = Depends(get_provider_manager),
     provider_id: str = Path(...),
     body: TestModelRequest = Body(...),
 ) -> TestConnectionResponse:
     """Test if a specific model works with the configured provider."""
-    manager = request.app.state.provider_manager
     try:
         provider = manager.get_provider(provider_id)
         if provider is None:
@@ -267,10 +277,9 @@ async def test_model(
     summary="Delete a custom provider",
 )
 async def delete_custom_provider_endpoint(
-    request: Request,
+    manager: ProviderManager = Depends(get_provider_manager),
     provider_id: str = Path(...),
 ) -> List[ProviderInfo]:
-    manager = request.app.state.provider_manager
     try:
         ok = manager.remove_custom_provider(provider_id)
         if not ok:
@@ -287,11 +296,10 @@ async def delete_custom_provider_endpoint(
     status_code=201,
 )
 async def add_model_endpoint(
-    request: Request,
+    manager: ProviderManager = Depends(get_provider_manager),
     provider_id: str = Path(...),
     body: AddModelRequest = Body(...),
 ) -> ProviderInfo:
-    manager = request.app.state.provider_manager
     try:
         provider = await manager.add_model_to_provider(
             provider_id=provider_id,
@@ -308,11 +316,10 @@ async def add_model_endpoint(
     summary="Remove a model from a provider",
 )
 async def remove_model_endpoint(
-    request: Request,
+    manager: ProviderManager = Depends(get_provider_manager),
     provider_id: str = Path(...),
     model_id: str = Path(...),
 ) -> ProviderInfo:
-    manager = request.app.state.provider_manager
     try:
         provider = await manager.delete_model_from_provider(
             provider_id=provider_id,
@@ -329,9 +336,8 @@ async def remove_model_endpoint(
     summary="Get active LLM",
 )
 async def get_active_models(
-    request: Request,
+    manager: ProviderManager = Depends(get_provider_manager),
 ) -> ActiveModelsInfo:
-    manager = request.app.state.provider_manager
     return ActiveModelsInfo(active_llm=manager.get_active_model())
 
 
@@ -341,10 +347,9 @@ async def get_active_models(
     summary="Set active LLM",
 )
 async def set_active_model(
-    request: Request,
+    manager: ProviderManager = Depends(get_provider_manager),
     body: ModelSlotRequest = Body(...),
 ) -> ActiveModelsInfo:
-    manager = request.app.state.provider_manager
     try:
         await manager.activate_model(body.provider_id, body.model)
     except ValueError as exc:
