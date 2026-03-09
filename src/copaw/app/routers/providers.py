@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from typing import List, Literal, Optional
+from copy import deepcopy
 
 from fastapi import APIRouter, Body, HTTPException, Path, Request
 from pydantic import BaseModel, Field
@@ -179,17 +180,16 @@ async def test_provider(
     """Test if a provider's URL and API key are valid."""
     manager = request.app.state.provider_manager
     try:
-        manager.update_provider(
-            provider_id,
-            {
-                "api_key": body.api_key if body else None,
-                "base_url": body.base_url if body else None,
-            },
-        )
         provider = manager.get_provider(provider_id)
         if provider is None:
             raise ValueError(f"Provider '{provider_id}' not found")
-        ok = await provider.check_connection()
+        # Ensure we don't accidentally modify provider config during test
+        tmp_provider = deepcopy(provider)
+        if body and body.api_key:
+            tmp_provider.api_key = body.api_key
+        if body and body.base_url:
+            tmp_provider.base_url = body.base_url
+        ok = await tmp_provider.check_connection()
         return TestConnectionResponse(
             success=ok,
             message="Connection successful" if ok else "Connection failed",

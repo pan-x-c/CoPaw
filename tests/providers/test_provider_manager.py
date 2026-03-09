@@ -54,7 +54,7 @@ LEGACY_PROVIDER = {
             "chat_model": "",
         },
         "ollama": {
-            "base_url": "http://localhost:11434/v1",
+            "base_url": "http://myhost:11434/v1",
             "api_key": "",
             "extra_models": [],
             "chat_model": "",
@@ -199,6 +199,9 @@ def test_migrate_legacy_file_and_persist_active_model(
     assert len(legacy_custom.extra_models) == 1
     assert legacy_custom.extra_models[0].id == "qwen3-max"
     assert legacy_custom.api_key == "sk-test-legacy-custom-secret"
+
+    legacy_ollama = manager.get_provider("ollama")
+    assert legacy_ollama.base_url == "http://myhost:11434/v1"
 
     active_model_file = isolated_secret_dir / "providers" / "active_model.json"
     assert active_model_file.exists()

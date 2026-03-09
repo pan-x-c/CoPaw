@@ -477,6 +477,8 @@ class ProviderManager:
                         ModelInfo.model_validate(model)
                         for model in config["extra_models"]
                     ]
+                if not provider.freeze_url and "base_url" in config:
+                    provider.base_url = config["base_url"]
                 self._save_provider(provider, is_builtin=True)
             # Migrate custom providers
             for provider_id, data in custom_providers.items():
