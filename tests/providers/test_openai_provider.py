@@ -17,20 +17,6 @@ def _make_provider() -> OpenAIProvider:
     )
 
 
-async def test_auto_load_from_env(monkeypatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
-    monkeypatch.setenv("OPENAI_BASE_URL", "https://env-openai.local/v1")
-
-    provider = OpenAIProvider(
-        id="openai",
-        name="OpenAI",
-        chat_model="OpenAIChatModel",
-    )
-
-    assert provider.api_key == "sk-env"
-    assert provider.base_url == "https://env-openai.local/v1"
-
-
 async def test_check_connection_success(monkeypatch) -> None:
     provider = _make_provider()
     calls: list[float | None] = []

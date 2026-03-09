@@ -14,14 +14,6 @@ from copaw.providers.provider import ModelInfo, Provider
 
 
 class AnthropicProvider(Provider):
-    def model_post_init(self, __context: Any) -> None:
-        if not self.api_key:  # type: ignore
-            self.api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not self.base_url:  # type: ignore
-            self.base_url = os.environ.get(
-                "ANTHROPIC_BASE_URL",
-                "https://api.anthropic.com",
-            )
 
     def _client(self, timeout: float = 5) -> anthropic.AsyncAnthropic:
         return anthropic.AsyncAnthropic(
@@ -101,8 +93,8 @@ class AnthropicProvider(Provider):
         from agentscope.model import AnthropicChatModel
 
         dashscope_base_urls = [
-            "https://coding.dashscope.aliyuncs.com/apps/anthropic",
             "https://dashscope.aliyuncs.com/apps/anthropic",
+            "https://coding.dashscope.aliyuncs.com/apps/anthropic",
         ]
 
         client_kwargs = {"base_url": self.base_url}

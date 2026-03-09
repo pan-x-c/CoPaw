@@ -16,21 +16,6 @@ def _make_provider() -> AnthropicProvider:
         chat_model="AnthropicChatModel",
     )
 
-
-async def test_auto_load_from_env(monkeypatch) -> None:
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "ant-env")
-    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://env-anthropic.local")
-
-    provider = AnthropicProvider(
-        id="anthropic",
-        name="Anthropic",
-        chat_model="AnthropicChatModel",
-    )
-
-    assert provider.api_key == "ant-env"
-    assert provider.base_url == "https://env-anthropic.local"
-
-
 async def test_check_connection_success(monkeypatch) -> None:
     provider = _make_provider()
     called = {"count": 0}

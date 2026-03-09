@@ -14,14 +14,6 @@ from copaw.providers.provider import ModelInfo, Provider
 
 
 class OpenAIProvider(Provider):
-    def model_post_init(self, __context: Any) -> None:
-        if not self.api_key:  # type: ignore
-            self.api_key = os.environ.get("OPENAI_API_KEY", "")
-        if not self.base_url:  # type: ignore
-            self.base_url = os.environ.get(
-                "OPENAI_BASE_URL",
-                "https://api.openai.com/v1",
-            )
 
     def _client(self, timeout: float = 5) -> AsyncOpenAI:
         return AsyncOpenAI(
