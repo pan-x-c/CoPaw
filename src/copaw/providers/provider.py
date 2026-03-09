@@ -168,6 +168,7 @@ class Provider(ProviderInfo, ABC):
             is_local=self.is_local,
             is_custom=self.is_custom,
             freeze_url=self.freeze_url,
+            require_api_key=self.require_api_key,
         )
 
 

@@ -89,9 +89,9 @@ class OpenAIProvider(Provider):
             return False
 
     def get_chat_model_instance(self, model_id: str) -> ChatModelBase:
-        from agentscope.model import OpenAIChatModel
+        from .openai_chat_model_compat import OpenAIChatModelCompat
 
-        return OpenAIChatModel(
+        return OpenAIChatModelCompat(
             model_name=model_id,
             stream=True,
             api_key=self.api_key,
