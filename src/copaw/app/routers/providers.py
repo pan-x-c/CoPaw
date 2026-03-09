@@ -78,21 +78,27 @@ async def configure_provider(
     provider_id: str = Path(...),
     body: ProviderConfigRequest = Body(...),
 ) -> ProviderInfo:
-    try:
-        ok = manager.update_provider(
-            provider_id,
-            {
-                "api_key": body.api_key,
-                "base_url": body.base_url,
-                "chat_model": body.chat_model,
-            },
+    ok = manager.update_provider(
+        provider_id,
+        {
+            "api_key": body.api_key,
+            "base_url": body.base_url,
+            "chat_model": body.chat_model,
+        },
+    )
+    if not ok:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Provider '{provider_id}' not found",
         )
-        if not ok:
-            raise ValueError(f"Provider '{provider_id}' not found")
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return await manager.get_provider_info(provider_id)
+    provider_info = await manager.get_provider_info(provider_id)
+    if provider_info is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Provider '{provider_id}' not found after update",
+        )
+    return provider_info
 
 
 @router.post(
