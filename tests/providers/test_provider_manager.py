@@ -127,16 +127,18 @@ async def test_activate_provider_persists_active_model(
 ) -> None:
     manager = ProviderManager()
 
-    class FakeModels:
-        async def list(self, timeout=None):
-            return SimpleNamespace(data=[])
+    class FakeCompletions:
+        async def create(self, **kwargs):
+            return SimpleNamespace(id="ok", request=kwargs)
 
-    fake_client = SimpleNamespace(models=FakeModels())
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=FakeCompletions()),
+    )
 
     monkeypatch.setattr(
         OpenAIProvider,
         "_client",
-        lambda timeout=5: fake_client,
+        lambda self, timeout=5: fake_client,
     )
 
     await manager.activate_model("openai", "gpt-5")
