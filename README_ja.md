@@ -76,18 +76,32 @@
 > - **DingTalk / Feishu / QQ でチャットしたい**: コンソールで[チャネル](https://copaw.agentscope.io/docs/channels)を設定。
 > - **Pythonをインストールしたくない**: [ワンラインインストール](#ワンラインインストールベータ版継続的に改善中)がPythonを自動処理。または[ModelScopeワンクリック](https://modelscope.cn/studios/fork?target=AgentScope/CoPaw)でクラウドデプロイ。
 
-- [ニュース](#ニュース)
-- [クイックスタート](#クイックスタート)
-- [APIキー](#apiキー)
-- [ローカルモデル](#ローカルモデル)
-- [ドキュメント](#ドキュメント)
-- [FAQ](#faq)
-- [ロードマップ](#ロードマップ)
-- [参加方法](#参加方法)
-- [ソースからインストール](#ソースからインストール)
-- [なぜCoPaw？](#なぜcopaw)
-- [開発チーム](#開発チーム)
-- [ライセンス](#ライセンス)
+- [CoPaw](#copaw)
+  - [ニュース](#ニュース)
+  - [目次](#目次)
+  - [クイックスタート](#クイックスタート)
+    - [pip install（推奨）](#pip-install推奨)
+    - [ワンラインインストール（ベータ版、継続的に改善中）](#ワンラインインストールベータ版継続的に改善中)
+    - [デスクトップアプリケーション（Beta）](#デスクトップアプリケーションbeta)
+      - [ダウンロード](#ダウンロード)
+      - [特徴](#特徴)
+      - [初回起動](#初回起動)
+      - [macOS: システムセキュリティ制限の回避](#macos-システムセキュリティ制限の回避)
+    - [Dockerを使用](#dockerを使用)
+    - [ModelScopeを使用](#modelscopeを使用)
+    - [Alibaba Cloud ECSへのデプロイ](#alibaba-cloud-ecsへのデプロイ)
+  - [APIキー](#apiキー)
+  - [ローカルモデル](#ローカルモデル)
+  - [ドキュメント](#ドキュメント)
+  - [FAQ](#faq)
+  - [ロードマップ](#ロードマップ)
+    - [参加方法](#参加方法)
+  - [ソースからインストール](#ソースからインストール)
+  - [なぜCoPaw？](#なぜcopaw)
+  - [開発チーム](#開発チーム)
+  - [お問い合わせ](#お問い合わせ)
+  - [ライセンス](#ライセンス)
+  - [コントリビューター](#コントリビューター)
 
 ---
 
@@ -288,7 +302,7 @@ docker run -p 127.0.0.1:8088:8088 -v copaw-data:/app/working agentscope/copaw:la
 >   --add-host=host.docker.internal:host-gateway \
 >   -v copaw-data:/app/working agentscope/copaw:latest
 > ```
-> その後、CoPawの **Settings → Models → Ollama** で、Base URLを `http://host.docker.internal:11434/v1` または対応するポートに変更してください。
+> その後、CoPawの **Settings → Models → Ollama** で、Base URLを `http://host.docker.internal:11434` または対応するポートに変更してください。
 >
 > **方法B** — ホストネットワーク（Linuxのみ）：
 > ```bash

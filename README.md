@@ -76,18 +76,32 @@ Your Personal AI Assistant; easy to install, deploy on your own machine or on th
 > - **I want to chat in DingTalk / Feishu / QQ**: Configure [channels](https://copaw.agentscope.io/docs/channels) in the Console.
 > - **I don’t want to install Python**: [Script install](#script-install) handles Python automatically, or use [ModelScope one-click](https://modelscope.cn/studios/fork?target=AgentScope/CoPaw) for cloud deployment.
 
-- [News](#news)
-- [Quick Start](#quick-start)
-- [API Key](#api-key)
-- [Local Models](#local-models)
-- [Documentation](#documentation)
-- [FAQ](#faq)
-- [Roadmap](#roadmap)
-- [Contributing](#get-involved)
-- [Install from source](#install-from-source)
-- [Why CoPaw?](#why-copaw)
-- [Built by](#built-by)
-- [License](#license)
+- [CoPaw](#copaw)
+  - [News](#news)
+  - [Table of Contents](#table-of-contents)
+  - [Quick Start](#quick-start)
+    - [pip install](#pip-install)
+    - [Script install](#script-install)
+    - [Desktop Application (Beta)](#desktop-application-beta)
+      - [Download](#download)
+      - [Features](#features)
+      - [First Launch](#first-launch)
+      - [macOS: Bypass System Security Restrictions](#macos-bypass-system-security-restrictions)
+    - [Using Docker](#using-docker)
+    - [Using ModelScope](#using-modelscope)
+    - [Deploy on Alibaba Cloud ECS](#deploy-on-alibaba-cloud-ecs)
+  - [API Key](#api-key)
+  - [Local Models](#local-models)
+  - [Documentation](#documentation)
+  - [FAQ](#faq)
+  - [Roadmap](#roadmap)
+    - [Get involved](#get-involved)
+  - [Install from source](#install-from-source)
+  - [Why CoPaw?](#why-copaw)
+  - [Built by](#built-by)
+  - [Contact us](#contact-us)
+  - [License](#license)
+  - [Contributors](#contributors)
 
 ---
 
@@ -288,7 +302,7 @@ Then open **http://127.0.0.1:8088/** for the Console. Config, memory, and skills
 >   --add-host=host.docker.internal:host-gateway \
 >   -v copaw-data:/app/working agentscope/copaw:latest
 > ```
-> Then in CoPaw **Settings → Models → Ollama**, change the Base URL to `http://host.docker.internal:11434/v1` or your corresponding port.
+> Then in CoPaw **Settings → Models → Ollama**, change the Base URL to `http://host.docker.internal:11434` or your corresponding port.
 >
 > **Option B** — Host networking (Linux only):
 > ```bash

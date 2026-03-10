@@ -76,18 +76,32 @@
 > - **我想在钉钉 / 飞书 / QQ 里聊**：在控制台中进行 [频道配置](https://copaw.agentscope.io/docs/channels)。
 > - **我不想装 Python**：[脚本安装](#脚本安装) 自动管理 Python，或使用 [魔搭一键配置](https://modelscope.cn/studios/fork?target=AgentScope/CoPaw) 云端部署。
 
-- [新闻](#新闻)
-- [快速开始](#快速开始)
-- [API Key](#api-key)
-- [本地模型](#本地模型)
-- [文档](#文档)
-- [常见问题](#常见问题)
-- [路线图](#路线图)
-- [参与贡献](#参与贡献)
-- [从源码安装](#从源码安装)
-- [为什么叫 CoPaw？](#为什么叫-copaw)
-- [由谁构建](#由谁构建)
-- [许可证](#许可证)
+- [CoPaw](#copaw)
+  - [新闻](#新闻)
+  - [目录](#目录)
+  - [快速开始](#快速开始)
+    - [pip 安装](#pip-安装)
+    - [脚本安装](#脚本安装)
+    - [桌面应用（Beta）](#桌面应用beta)
+      - [下载](#下载)
+      - [特点](#特点)
+      - [首次启动](#首次启动)
+      - [macOS：绕过系统安全限制](#macos绕过系统安全限制)
+    - [使用 Docker](#使用-docker)
+    - [使用魔搭创空间](#使用魔搭创空间)
+    - [部署到阿里云 ECS](#部署到阿里云-ecs)
+  - [API Key](#api-key)
+  - [本地模型](#本地模型)
+  - [文档](#文档)
+  - [常见问题](#常见问题)
+  - [路线图](#路线图)
+    - [参与贡献](#参与贡献)
+  - [从源码安装](#从源码安装)
+  - [为什么叫 CoPaw？](#为什么叫-copaw)
+  - [由谁构建](#由谁构建)
+  - [联系我们](#联系我们)
+  - [许可证](#许可证)
+  - [贡献者](#贡献者)
 
 ---
 
@@ -290,7 +304,7 @@ docker run -p 127.0.0.1:8088:8088 -v copaw-data:/app/working agentscope/copaw:la
 >   --add-host=host.docker.internal:host-gateway \
 >   -v copaw-data:/app/working agentscope/copaw:latest
 > ```
-> 然后在 CoPaw **设置 → 模型 → Ollama** 中，将 Base URL 改为 `http://host.docker.internal:11434/v1` 或对应端口。
+> 然后在 CoPaw **设置 → 模型 → Ollama** 中，将 Base URL 改为 `http://host.docker.internal:11434` 或对应端口。
 >
 > **方式 B** — 使用宿主机网络（仅限 Linux）：
 > ```bash
