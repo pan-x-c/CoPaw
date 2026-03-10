@@ -193,7 +193,6 @@ async def test_update_config_updates_non_none_values_and_get_info(
             "base_url": "http://127.0.0.1:11434",
             "api_key": "EMPTY-NEW",
             "chat_model": "OllamaChatModel",
-            "api_key_prefix": "ollama-",
             "generate_kwargs": {"temperature": 0.3, "num_ctx": 4096},
         },
     )
@@ -204,7 +203,6 @@ async def test_update_config_updates_non_none_values_and_get_info(
     assert provider.base_url == "http://127.0.0.1:11434"
     assert provider.api_key == "EMPTY-NEW"
     assert provider.chat_model == "OllamaChatModel"
-    assert provider.api_key_prefix == "ollama-"
     assert provider.generate_kwargs == {
         "temperature": 0.3,
         "num_ctx": 4096,
@@ -212,9 +210,8 @@ async def test_update_config_updates_non_none_values_and_get_info(
     assert [model.id for model in provider.models] == ["qwen2:7b"]
     assert info.name == "Ollama Local"
     assert info.base_url == "http://127.0.0.1:11434"
-    assert info.api_key == ""
+    assert info.api_key == "EMPTY-NEW"
     assert info.chat_model == "OllamaChatModel"
-    assert info.api_key_prefix == "ollama-"
     assert info.generate_kwargs == {
         "temperature": 0.3,
         "num_ctx": 4096,
@@ -226,7 +223,6 @@ async def test_update_config_skips_none_values_and_get_info(
     monkeypatch,
 ) -> None:
     provider = _make_provider()
-    provider.api_key_prefix = "ollama-"
     provider.generate_kwargs = {"temperature": 0.1}
 
     async def fake_fetch_models(self, timeout: float = 5):
@@ -253,14 +249,12 @@ async def test_update_config_skips_none_values_and_get_info(
     assert provider.base_url == "http://localhost:11434"
     assert provider.api_key == "EMPTY"
     assert provider.chat_model == "OllamaChatModel"
-    assert provider.api_key_prefix == "ollama-"
     assert provider.generate_kwargs == {"temperature": 0.1}
     assert [model.id for model in provider.models] == ["llama3:8b"]
     assert info.name == "Ollama"
     assert info.base_url == "http://localhost:11434"
-    assert info.api_key == ""
+    assert info.api_key == "******"
     assert info.chat_model == "OllamaChatModel"
-    assert info.api_key_prefix == "ollama-"
     assert info.generate_kwargs == {"temperature": 0.1}
     assert [model.id for model in info.models] == ["llama3:8b"]
 
@@ -290,7 +284,7 @@ async def test_update_config_keeps_chat_model_for_non_custom_provider(
     assert provider.chat_model == "OllamaChatModel"
     assert info.name == "Ollama Updated"
     assert info.chat_model == "OllamaChatModel"
-    assert info.api_key == ""
+    assert info.api_key == "EMPTY"
 
 
 async def test_add_model_calls_pull(monkeypatch) -> None:

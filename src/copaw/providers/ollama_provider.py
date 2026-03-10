@@ -180,18 +180,4 @@ class OllamaProvider(Provider):
             self.models = models
         except Exception:
             models = []
-        return ProviderInfo(
-            id=self.id,
-            name=self.name,
-            base_url=self.base_url,
-            api_key="",  # Ollama does not use API Keys
-            chat_model=self.chat_model,
-            models=models,
-            extra_models=self.extra_models,
-            api_key_prefix=self.api_key_prefix,
-            is_local=self.is_local,
-            is_custom=self.is_custom,
-            freeze_url=self.freeze_url,
-            require_api_key=self.require_api_key,
-            generate_kwargs=self.generate_kwargs,
-        )
+        return await super().get_info(mock_secret=mock_secret)

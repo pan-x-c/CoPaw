@@ -2,7 +2,7 @@
 """Definition of Provider."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Type
+from typing import Dict, List, Type, Any
 from pydantic import BaseModel, Field
 
 from agentscope.model import ChatModelBase
@@ -50,7 +50,7 @@ class ProviderInfo(BaseModel):
         default=False,
         description=("Whether this provider is user-created (not built-in)."),
     )
-    generate_kwargs: Dict = Field(
+    generate_kwargs: Dict[str, Any] = Field(
         default_factory=dict,
         description="Generation parameters for agentscope chat models.",
     )
@@ -128,6 +128,7 @@ class Provider(ProviderInfo, ABC):
         if (
             "generate_kwargs" in config
             and config["generate_kwargs"] is not None
+            and isinstance(config["generate_kwargs"], dict)
         ):
             self.generate_kwargs = config["generate_kwargs"]
 

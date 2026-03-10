@@ -8,7 +8,7 @@ assignees: []
 
 ## CoPaw Version
 
-[Proivde the version of CoPaw you are using, e.g. 0.x.x or git commit hash.]
+[Provide the version of CoPaw you are using, e.g. 0.x.x or git commit hash.]
 [Using `copaw --version` in your command line or checking the version in the console UI can help.]
 
 ## Description
