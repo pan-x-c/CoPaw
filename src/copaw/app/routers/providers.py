@@ -36,6 +36,13 @@ class ProviderConfigRequest(BaseModel):
         default=None,
         description="Chat model class name for protocol selection",
     )
+    extra_config: Optional[dict] = Field(
+        default_factory=dict,
+        description=(
+            "Extra configuration in json format, will be expanded "
+            "and passed to model calls."
+        ),
+    )
 
 
 class ModelSlotRequest(BaseModel):
@@ -84,6 +91,7 @@ async def configure_provider(
             "api_key": body.api_key,
             "base_url": body.base_url,
             "chat_model": body.chat_model,
+            "extra_config": body.extra_config,
         },
     )
     if not ok:
@@ -207,9 +215,7 @@ async def test_provider(
         ok, msg = await tmp_provider.check_connection()
         return TestConnectionResponse(
             success=ok,
-            message="Connection successful"
-            if ok
-            else f"Connection failed: {msg}",
+            message="Connection successful" if ok else f"Connection failed: {msg}",
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -270,9 +276,11 @@ async def test_model(
         ok, msg = await provider.check_model_connection(model_id=body.model_id)
         return TestConnectionResponse(
             success=ok,
-            message="Model connection successful"
-            if ok
-            else f"Model connection failed: {msg}",
+            message=(
+                "Model connection successful"
+                if ok
+                else f"Model connection failed: {msg}"
+            ),
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
