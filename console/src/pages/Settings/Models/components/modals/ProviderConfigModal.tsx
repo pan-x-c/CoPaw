@@ -502,14 +502,16 @@ export function ProviderConfigModal({
                 {t("models.revokeAuthorization")}
               </Button>
             )}
-            <Button
-              size="small"
-              icon={<ApiOutlined />}
-              onClick={handleTest}
-              loading={testing}
-            >
-              {t("models.testConnection")}
-            </Button>
+            {!provider.is_custom && (
+              <Button
+                size="small"
+                icon={<ApiOutlined />}
+                onClick={handleTest}
+                loading={testing}
+              >
+                {t("models.testConnection")}
+              </Button>
+            )}
           </div>
           <div className={styles.modalFooterRight}>
             <Button onClick={onClose}>{t("models.cancel")}</Button>
