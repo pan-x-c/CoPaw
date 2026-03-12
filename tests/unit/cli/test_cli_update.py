@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import sys
 import json
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from copaw.cli.update_cmd import (
     _detect_installation,
     _is_newer_version,
     _detect_source_type,
+    _run_update_worker_foreground,
 )
 
 
@@ -226,7 +228,123 @@ def test_update_blocks_running_service(monkeypatch) -> None:
     result = CliRunner().invoke(cli, ["update", "--yes"])
 
     assert result.exit_code != 0
-    assert "Please stop it before running `copaw update`." in result.output
+    assert "Please stop it before running `copaw update`" in result.output
+    assert (
+        "without `--yes` to confirm a forced `copaw shutdown`" in result.output
+    )
+
+
+def test_update_can_cancel_forced_shutdown(monkeypatch) -> None:
+    from copaw.cli import update_cmd as update_cmd_module
+
+    install_info = _install_info()
+
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_detect_installation",
+        lambda: install_info,
+    )
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_fetch_latest_version",
+        lambda: "9.9.9",
+    )
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_detect_running_service",
+        lambda host, port: RunningServiceInfo(
+            is_running=True,
+            base_url="http://127.0.0.1:8088",
+            version=__version__,
+        ),
+    )
+
+    result = CliRunner().invoke(cli, ["update"], input="n\n")
+
+    assert result.exit_code == 0
+    assert (
+        "forcibly terminate the current CoPaw backend/frontend "
+        "processes" in result.output
+    )
+    assert (
+        "Run `copaw shutdown` now and continue with the update?"
+        in result.output
+    )
+    assert "Cancelled." in result.output
+
+
+def test_update_can_force_shutdown_running_service(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from copaw.cli import update_cmd as update_cmd_module
+
+    install_info = _install_info()
+    spawned: dict[str, object] = {}
+    service_checks = iter(
+        [
+            RunningServiceInfo(
+                is_running=True,
+                base_url="http://127.0.0.1:8088",
+                version=__version__,
+            ),
+            RunningServiceInfo(is_running=False),
+        ],
+    )
+
+    monkeypatch.setattr(update_cmd_module, "WORKING_DIR", tmp_path)
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_detect_installation",
+        lambda: install_info,
+    )
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_fetch_latest_version",
+        lambda: "9.9.9",
+    )
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_detect_running_service",
+        lambda host, port: next(service_checks),
+    )
+
+    def _fake_shutdown(command, stdout, stderr, text, check):
+        del stdout, stderr, text, check
+        assert command == [
+            "/tmp/venv/bin/python",
+            "-m",
+            "copaw",
+            "--port",
+            "8088",
+            "shutdown",
+        ]
+
+        class _Result:
+            returncode = 0
+            stdout = "Stopped CoPaw processes: 1234\n"
+
+        return _Result()
+
+    def _fake_run_worker(plan_path: Path) -> int:
+        spawned["path"] = plan_path
+        spawned["plan"] = json.loads(plan_path.read_text(encoding="utf-8"))
+        return 0
+
+    monkeypatch.setattr(update_cmd_module.subprocess, "run", _fake_shutdown)
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_run_update_worker_foreground",
+        _fake_run_worker,
+    )
+
+    result = CliRunner().invoke(cli, ["update"], input="y\ny\n")
+
+    assert result.exit_code == 0
+    assert "Running `copaw shutdown` before updating..." in result.output
+    assert "Stopped CoPaw processes: 1234" in result.output
+    assert "Starting CoPaw update..." in result.output
+    assert isinstance(spawned["path"], Path)
 
 
 def test_update_can_cancel_non_pypi_override(monkeypatch) -> None:
@@ -298,17 +416,22 @@ def test_update_can_override_non_pypi_install_with_yes(
         _detect_running_service,
     )
 
-    def _fake_spawn(plan_path: Path) -> None:
+    def _fake_run_worker(plan_path: Path) -> int:
         spawned["path"] = plan_path
         spawned["plan"] = json.loads(plan_path.read_text(encoding="utf-8"))
+        return 0
 
-    monkeypatch.setattr(update_cmd_module, "_spawn_update_worker", _fake_spawn)
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_run_update_worker_foreground",
+        _fake_run_worker,
+    )
 
     result = CliRunner().invoke(cli, ["update", "--yes"])
 
     assert result.exit_code == 0
     assert "Proceeding because `--yes` was provided." in result.output
-    assert "Update process started in a separate process." in result.output
+    assert "Starting CoPaw update..." in result.output
     assert isinstance(spawned["path"], Path)
 
 
@@ -348,16 +471,21 @@ def test_update_spawns_worker(monkeypatch, tmp_path: Path) -> None:
         _detect_running_service,
     )
 
-    def _fake_spawn(plan_path: Path) -> None:
+    def _fake_run_worker(plan_path: Path) -> int:
         spawned["path"] = plan_path
         spawned["plan"] = json.loads(plan_path.read_text(encoding="utf-8"))
+        return 0
 
-    monkeypatch.setattr(update_cmd_module, "_spawn_update_worker", _fake_spawn)
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_run_update_worker_foreground",
+        _fake_run_worker,
+    )
 
     result = CliRunner().invoke(cli, ["update", "--yes"])
 
     assert result.exit_code == 0
-    assert "Update process started in a separate process." in result.output
+    assert "Starting CoPaw update..." in result.output
     assert isinstance(spawned["path"], Path)
     plan = spawned["plan"]
     assert plan["latest_version"] == "9.9.9"  # type: ignore [index]
@@ -441,14 +569,129 @@ def test_update_can_continue_when_version_is_not_comparable(
         _detect_running_service,
     )
 
-    def _fake_spawn(plan_path: Path) -> None:
+    def _fake_run_worker(plan_path: Path) -> int:
         spawned["path"] = plan_path
         spawned["plan"] = json.loads(plan_path.read_text(encoding="utf-8"))
+        return 0
 
-    monkeypatch.setattr(update_cmd_module, "_spawn_update_worker", _fake_spawn)
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_run_update_worker_foreground",
+        _fake_run_worker,
+    )
 
     result = CliRunner().invoke(cli, ["update"], input="y\ny\n")
 
     assert result.exit_code == 0
     assert isinstance(spawned["path"], Path)
-    assert "Update process started in a separate process." in result.output
+    assert "Starting CoPaw update..." in result.output
+
+
+def test_update_returns_worker_exit_code(monkeypatch, tmp_path: Path) -> None:
+    from copaw.cli import update_cmd as update_cmd_module
+
+    install_info = _install_info()
+
+    monkeypatch.setattr(update_cmd_module, "WORKING_DIR", tmp_path)
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_detect_installation",
+        lambda: install_info,
+    )
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_fetch_latest_version",
+        lambda: "9.9.9",
+    )
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_detect_running_service",
+        lambda host, port: RunningServiceInfo(is_running=False),
+    )
+    monkeypatch.setattr(
+        update_cmd_module,
+        "_run_update_worker_foreground",
+        lambda plan_path: 2,
+    )
+
+    result = CliRunner().invoke(cli, ["update", "--yes"])
+
+    assert result.exit_code == 2
+    assert "Starting CoPaw update..." in result.output
+
+
+def _write_plan(
+    plan_path: Path,
+    *,
+    command: list[str],
+    current_version: str = "1.0.0",
+    latest_version: str = "9.9.9",
+) -> None:
+    plan = {
+        "current_version": current_version,
+        "latest_version": latest_version,
+        "installer_label": "integration-test",
+        "command": command,
+        "install": {},
+    }
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+
+
+def test_update_worker_foreground_streams_output_and_cleans_plan(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """Test that the foreground worker streams child output and cleans up."""
+    plan_path = tmp_path / "update-plan.json"
+    _write_plan(
+        plan_path,
+        command=[
+            sys.executable,
+            "-u",
+            "-c",
+            (
+                "print('installer: preparing', flush=True);"
+                "print('installer: done', flush=True)"
+            ),
+        ],
+    )
+
+    return_code = _run_update_worker_foreground(plan_path)
+    captured = capsys.readouterr()
+
+    assert return_code == 0
+    assert "[copaw] Updating CoPaw 1.0.0 -> 9.9.9..." in captured.out
+    assert "[copaw] Using installer: integration-test" in captured.out
+    assert "installer: preparing" in captured.out
+    assert "installer: done" in captured.out
+    assert "[copaw] Update completed successfully." in captured.out
+    assert not plan_path.exists()
+
+
+def test_update_worker_foreground_propagates_failure_exit_code(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """Test that the foreground worker returns the installer exit code."""
+    plan_path = tmp_path / "update-plan-fail.json"
+    _write_plan(
+        plan_path,
+        command=[
+            sys.executable,
+            "-u",
+            "-c",
+            (
+                "import sys;"
+                "print('installer: failing', flush=True);"
+                "sys.exit(7)"
+            ),
+        ],
+    )
+
+    return_code = _run_update_worker_foreground(plan_path)
+    captured = capsys.readouterr()
+
+    assert return_code == 7
+    assert "installer: failing" in captured.out
+    assert "[copaw] Update failed with exit code 7." in captured.out
+    assert not plan_path.exists()

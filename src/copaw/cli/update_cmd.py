@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 import shutil
 import subprocess
 import sys
@@ -10,6 +12,7 @@ from dataclasses import asdict, dataclass
 from importlib import metadata
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import click
 import httpx
@@ -188,6 +191,86 @@ def _detect_running_service(
     return RunningServiceInfo(is_running=False)
 
 
+def _running_service_display(running: RunningServiceInfo) -> str:
+    """Build a concise running-service description for user prompts."""
+    if not running.base_url:
+        return "a running CoPaw service"
+    version_suffix = f" (version {running.version})" if running.version else ""
+    return f"CoPaw service at {running.base_url}{version_suffix}"
+
+
+def _confirm_force_shutdown(running: RunningServiceInfo) -> bool:
+    """Ask whether `copaw shutdown` should be used before updating."""
+    click.echo("")
+    click.secho("!" * 72, fg="yellow", bold=True)
+    click.secho(
+        "WARNING: RUNNING COPAW SERVICE DETECTED",
+        fg="yellow",
+        bold=True,
+    )
+    click.secho("!" * 72, fg="yellow", bold=True)
+    click.secho(
+        f"Detected {_running_service_display(running)}.",
+        fg="yellow",
+        bold=True,
+    )
+    click.secho(
+        "Running `copaw shutdown` will forcibly terminate the current "
+        "CoPaw backend/frontend processes.",
+        fg="red",
+        bold=True,
+    )
+    click.secho(
+        "Active requests, background tasks, or unsaved work may be "
+        "interrupted immediately.",
+        fg="red",
+        bold=True,
+    )
+    click.echo("")
+    return click.confirm(
+        "Run `copaw shutdown` now and continue with the update?",
+        default=False,
+    )
+
+
+def _run_shutdown_for_update(
+    info: InstallInfo,
+    running: RunningServiceInfo,
+) -> None:
+    """Run `copaw shutdown` in the current environment before updating."""
+    command = [info.python_executable, "-m", "copaw"]
+    parsed = urlparse(running.base_url or "")
+    if parsed.port is not None:
+        command.extend(["--port", str(parsed.port)])
+    command.append("shutdown")
+
+    click.echo("")
+    click.echo("Running `copaw shutdown` before updating...")
+
+    try:
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise click.ClickException(
+            "Failed to run `copaw shutdown`: " f"{exc}",
+        ) from exc
+
+    output = (result.stdout or "").strip()
+    if output:
+        click.echo(output)
+
+    if result.returncode != 0:
+        raise click.ClickException(
+            "`copaw shutdown` failed. Please stop the running CoPaw "
+            "service manually before running `copaw update`.",
+        )
+
+
 def _build_upgrade_command(
     info: InstallInfo,
     latest_version: str,
@@ -240,8 +323,8 @@ def _write_worker_plan(plan: dict[str, Any]) -> Path:
     return plan_path
 
 
-def _spawn_update_worker(plan_path: Path) -> None:
-    """Spawn the detached worker that performs the actual package upgrade."""
+def _spawn_update_worker(plan_path: Path) -> subprocess.Popen[str]:
+    """Spawn the worker that performs the actual package upgrade."""
     worker_code = (
         "from copaw.cli.update_cmd import run_update_worker; "
         "import sys; "
@@ -249,8 +332,10 @@ def _spawn_update_worker(plan_path: Path) -> None:
     )
     kwargs: dict[str, Any] = {
         "stdin": subprocess.DEVNULL,
-        "stdout": None,
-        "stderr": None,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+        "text": True,
+        "bufsize": 1,
     }
     if sys.platform == "win32":
         kwargs["creationflags"] = getattr(
@@ -261,10 +346,62 @@ def _spawn_update_worker(plan_path: Path) -> None:
     else:
         kwargs["start_new_session"] = True
 
-    subprocess.Popen(  # pylint: disable=consider-using-with
+    return subprocess.Popen(  # pylint: disable=consider-using-with
         [sys.executable, "-u", "-c", worker_code, str(plan_path)],
         **kwargs,
     )
+
+
+def _terminate_update_worker(proc: subprocess.Popen[str]) -> None:
+    """Best-effort termination for the worker and its installer child."""
+    if proc.poll() is not None:
+        return
+
+    try:
+        if sys.platform == "win32":
+            ctrl_break = getattr(signal, "CTRL_BREAK_EVENT", None)
+            if ctrl_break is not None:
+                proc.send_signal(ctrl_break)
+                try:
+                    proc.wait(timeout=5)
+                    return
+                except subprocess.TimeoutExpired:
+                    pass
+            proc.terminate()
+        else:
+            os.killpg(proc.pid, signal.SIGTERM)
+    except (OSError, ProcessLookupError, ValueError):
+        return
+
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        try:
+            proc.kill()
+        except OSError:
+            return
+
+
+def _run_update_worker_foreground(plan_path: Path) -> int:
+    """Run the update worker in a child process and wait for completion."""
+    try:
+        proc = _spawn_update_worker(plan_path)
+    except OSError as exc:
+        raise click.ClickException(
+            "Failed to start update worker: " f"{exc}",
+        ) from exc
+
+    try:
+        with proc:
+            if proc.stdout is not None:
+                for line in proc.stdout:
+                    click.echo(line.rstrip())
+            return proc.wait()
+    except KeyboardInterrupt:
+        click.echo("")
+        click.echo("[copaw] Update interrupted. Stopping installer...")
+        _terminate_update_worker(proc)
+        return 130
 
 
 def _load_worker_plan(plan_path: str | Path) -> dict[str, Any]:
@@ -273,7 +410,7 @@ def _load_worker_plan(plan_path: str | Path) -> dict[str, Any]:
 
 
 def run_update_worker(plan_path: str | Path) -> int:
-    """Run the detached update worker and stream installer output."""
+    """Run the update worker and stream installer output."""
     path = Path(plan_path)
     plan = _load_worker_plan(path)
     command = [str(part) for part in plan["command"]]
@@ -405,14 +542,27 @@ def update_cmd(ctx: click.Context, yes: bool) -> None:
         ctx.obj.get("port") if ctx.obj else None,
     )
     if running.is_running:
-        version_suffix = (
-            f" (version {running.version})" if running.version else ""
+        if yes:
+            raise click.ClickException(
+                "Detected "
+                f"{_running_service_display(running)}. "
+                "Please stop it before running `copaw update`, or rerun "
+                "without `--yes` to confirm a forced `copaw shutdown`.",
+            )
+        if not _confirm_force_shutdown(running):
+            click.echo("Cancelled.")
+            return
+        _run_shutdown_for_update(info, running)
+        running = _detect_running_service(
+            ctx.obj.get("host") if ctx.obj else None,
+            ctx.obj.get("port") if ctx.obj else None,
         )
-        raise click.ClickException(
-            "Detected a running CoPaw service at "
-            f"{running.base_url}{version_suffix}. "
-            "Please stop it before running `copaw update`.",
-        )
+        if running.is_running:
+            raise click.ClickException(
+                "Detected "
+                f"{_running_service_display(running)} after `copaw shutdown`. "
+                "Please stop it manually before running `copaw update`.",
+            )
 
     if not yes and not click.confirm(
         f"Update CoPaw to {latest_version} in the current environment?",
@@ -430,11 +580,9 @@ def update_cmd(ctx: click.Context, yes: bool) -> None:
         "install": asdict(info),
     }
     plan_path = _write_worker_plan(plan)
-    _spawn_update_worker(plan_path)
-
     click.echo("")
-    click.echo("Update process started in a separate process.")
-    click.echo(
-        "Wait for the installer output below, then restart CoPaw "
-        "after it finishes.",
-    )
+    click.echo("Starting CoPaw update...")
+    return_code = _run_update_worker_foreground(plan_path)
+
+    if return_code != 0:
+        ctx.exit(return_code)
