@@ -106,6 +106,7 @@ export function OllamaModelManageModal({
 
       if (needsRefresh) {
         onSaved();
+        fetchOllamaModels();
       }
 
       setOllamaTasks(active);
