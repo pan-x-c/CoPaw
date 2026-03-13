@@ -293,7 +293,9 @@ async def test_add_model_calls_pull(monkeypatch) -> None:
 
         async def pull(self, model: str):
             called["model"] = model
-            self.payload["models"].append(SimpleNamespace(model=model, name=model))
+            self.payload["models"].append(
+                SimpleNamespace(model=model, name=model)
+            )
 
         async def list(self):
             called["list_count"] += 1
@@ -326,11 +328,10 @@ async def test_delete_model_calls_delete(monkeypatch) -> None:
         "models": [
             SimpleNamespace(model="qwen3:8b"),
             SimpleNamespace(model="qwen3:4b"),
-        ]
+        ],
     }
 
     class FakeClient:
-
         def __init__(self):
             self.payload = payload
 

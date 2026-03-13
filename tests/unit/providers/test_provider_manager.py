@@ -9,7 +9,6 @@ import pytest
 
 import copaw.providers.provider_manager as provider_manager_module
 from copaw.providers.anthropic_provider import AnthropicProvider
-from copaw.providers.ollama_provider import OllamaProvider
 from copaw.providers.openai_provider import OpenAIProvider
 from copaw.providers.provider import DefaultProvider, ModelInfo
 from copaw.providers.provider_manager import ProviderManager
