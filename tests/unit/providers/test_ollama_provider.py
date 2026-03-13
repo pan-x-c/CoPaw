@@ -294,7 +294,7 @@ async def test_add_model_calls_pull(monkeypatch) -> None:
         async def pull(self, model: str):
             called["model"] = model
             self.payload["models"].append(
-                SimpleNamespace(model=model, name=model)
+                SimpleNamespace(model=model, name=model),
             )
 
         async def list(self):
