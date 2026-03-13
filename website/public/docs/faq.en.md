@@ -163,7 +163,7 @@ When you deploy a local model with Ollama or LM Studio, if the model's
 
 - Before running CoPaw, set the model's `context length` to **at least 32K**
 - For more complex tasks, frequent tool calls, or longer conversations, you
-   may need a value **higher than 32K**
+  may need a value **higher than 32K**
 
 > ⚠️ **Before running CoPaw, you must set the context length to 32K or higher**
 >
