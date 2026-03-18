@@ -91,7 +91,7 @@ MINIMAX_MODELS: List[ModelInfo] = [
     ModelInfo(id="MiniMax-M2.5", name="MiniMax M2.5"),
     ModelInfo(id="MiniMax-M2.5-highspeed", name="MiniMax M2.5 Highspeed"),
     ModelInfo(id="MiniMax-M2.7", name="MiniMax M2.7"),
-    ModelInfo(id="MiniMax-M2.7-highspeed", name="MiniMax M2.7 Highspeed")
+    ModelInfo(id="MiniMax-M2.7-highspeed", name="MiniMax M2.7 Highspeed"),
 ]
 
 DEEPSEEK_MODELS: List[ModelInfo] = [
