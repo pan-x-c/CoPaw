@@ -607,7 +607,9 @@ class ProviderManager:
         for builtin in self.builtin_providers.values():
             provider = self.load_provider(builtin.id, is_builtin=True)
             if provider:
-                builtin.base_url = provider.base_url
+                # inherit user-configured base_url only when freeze_url=False
+                if not builtin.freeze_url:
+                    builtin.base_url = provider.base_url
                 builtin.api_key = provider.api_key
                 builtin.extra_models = provider.extra_models
                 builtin.generate_kwargs.update(provider.generate_kwargs)

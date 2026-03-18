@@ -392,7 +392,7 @@ def test_init_from_storage_migrates_with_different_provider(
     legacy_minimax_provider = {
         "id": "minimax",
         "name": "MiniMax",
-        "base_url": "https://api.minimax.io/anthropic",
+        "base_url": "https://api.minimax.io/v1",
         "api_key": "sk-legacy-minimax",
         "chat_model": "OpenAIChatModel",
         "models": [{"id": "MiniMax-M2.5", "name": "MiniMax M2.5"}],
@@ -419,3 +419,21 @@ def test_init_from_storage_migrates_with_different_provider(
     from agentscope.model import AnthropicChatModel
 
     assert provider.get_chat_model_cls() == AnthropicChatModel
+
+    legacy_ollama_provider = {
+        "id": "ollama",
+        "name": "Ollama New",
+        "base_url": "http://legacy-ollama:11434",
+        "api_key": "sk-legacy-ollama",
+        "chat_model": "OpenAIChatModel",
+        "models": [],
+    }
+    (builtin_path / "ollama.json").write_text(
+        json.dumps(legacy_ollama_provider, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    manager = ProviderManager()
+    assert manager.get_provider("ollama") is not None
+    assert (
+        manager.get_provider("ollama").base_url == "http://legacy-ollama:11434"
+    )
