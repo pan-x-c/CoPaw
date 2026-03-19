@@ -6,11 +6,6 @@ from __future__ import annotations
 import os
 from typing import Any, List
 
-try:
-    import ollama
-except ImportError:
-    ollama = None  # type: ignore
-
 from agentscope.model import ChatModelBase
 
 from copaw.providers.provider import ModelInfo, Provider
@@ -30,13 +25,15 @@ class OllamaProvider(Provider):
             self.base_url = self.base_url[:-3]
 
     def _client(self, timeout: float = 5):
-        if ollama is None:
+        try:
+            import ollama
+        except ImportError as e:
             raise ImportError(
                 "The 'ollama' Python package is required. You may have "
                 "installed Ollama via their CLI or desktop app, but you "
                 "also need the Python SDK to manage models from CoPaw. "
                 "Please install it with: pip install 'copaw[ollama]'",
-            )
+            ) from e
         return ollama.AsyncClient(host=self.base_url, timeout=timeout)
 
     @staticmethod

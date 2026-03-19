@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import copaw.providers.ollama_provider as ollama_provider_module
 from copaw.providers.ollama_provider import OllamaProvider
 from copaw.providers.provider import ModelInfo
 
@@ -54,7 +53,12 @@ async def test_import_error_on_missing_ollama(monkeypatch) -> None:
         name="Ollama",
         chat_model="OllamaChatModel",
     )
-    monkeypatch.setattr(ollama_provider_module, "ollama", None)
+
+    def _raise_import_error(timeout=5):
+        _ = timeout
+        raise ImportError("missing ollama")
+
+    monkeypatch.setattr(provider, "_client", _raise_import_error)
 
     ok, msg = await provider.check_connection(timeout=1.0)
 
@@ -70,11 +74,6 @@ async def test_check_connection_error_returns_false(monkeypatch) -> None:
             raise RuntimeError("boom")
 
     monkeypatch.setattr(provider, "_client", lambda timeout=5: FakeClient())
-    monkeypatch.setattr(
-        ollama_provider_module.ollama,
-        "ResponseError",
-        Exception,
-    )
 
     ok, msg = await provider.check_connection(timeout=1.0)
 
@@ -112,11 +111,6 @@ async def test_fetch_models_error_returns_empty(monkeypatch) -> None:
             raise RuntimeError("failed")
 
     monkeypatch.setattr(provider, "_client", lambda timeout=5: FakeClient())
-    monkeypatch.setattr(
-        ollama_provider_module.ollama,
-        "ResponseError",
-        Exception,
-    )
 
     models = await provider.fetch_models(timeout=3.0)
 
@@ -162,11 +156,6 @@ async def test_check_model_connection_error_returns_false(monkeypatch) -> None:
             raise RuntimeError("failed")
 
     monkeypatch.setattr(provider, "_client", lambda timeout=5: FakeClient())
-    monkeypatch.setattr(
-        ollama_provider_module.ollama,
-        "ResponseError",
-        Exception,
-    )
 
     ok, msg = await provider.check_model_connection("qwen2:7b", timeout=4.0)
 

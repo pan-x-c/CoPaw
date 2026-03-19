@@ -224,6 +224,48 @@ def test_migrate_legacy_file_and_persist_active_model(
     assert active_model_file.exists()
 
 
+def test_init_builtins_skips_optional_providers_when_modules_missing(
+    isolated_secret_dir,
+    monkeypatch,
+) -> None:
+    missing_modules = {"ollama", "llama_cpp", "mlx_lm"}
+    original_find_spec = provider_manager_module.find_spec
+
+    def fake_find_spec(name: str, package=None):
+        if name in missing_modules:
+            return None
+        return original_find_spec(name, package)
+
+    monkeypatch.setattr(provider_manager_module, "find_spec", fake_find_spec)
+
+    manager = ProviderManager()
+
+    assert manager.get_provider("ollama") is None
+    assert manager.get_provider("llamacpp") is None
+    assert manager.get_provider("mlx") is None
+
+
+def test_init_builtins_adds_optional_providers_when_modules_available(
+    isolated_secret_dir,
+    monkeypatch,
+) -> None:
+    available_modules = {"ollama", "llama_cpp", "mlx_lm"}
+    original_find_spec = provider_manager_module.find_spec
+
+    def fake_find_spec(name: str, package=None):
+        if name in available_modules:
+            return object()
+        return original_find_spec(name, package)
+
+    monkeypatch.setattr(provider_manager_module, "find_spec", fake_find_spec)
+
+    manager = ProviderManager()
+
+    assert manager.get_provider("ollama") is not None
+    assert manager.get_provider("llamacpp") is not None
+    assert manager.get_provider("mlx") is not None
+
+
 async def test_add_custom_provider_conflict_resolution_loops_until_unique(
     isolated_secret_dir,
 ) -> None:

@@ -4,6 +4,7 @@ It provides a unified interface to manage providers, such as listing available
 providers, adding/removing custom providers, and fetching provider details."""
 
 import asyncio
+from importlib.util import find_spec
 import os
 from typing import Dict, List
 import logging
@@ -28,6 +29,11 @@ from copaw.constant import SECRET_DIR
 from copaw.local_models import create_local_chat_model
 
 logger = logging.getLogger(__name__)
+
+
+def _is_module_available(module_name: str) -> bool:
+    """Return whether an optional dependency can be resolved."""
+    return find_spec(module_name) is not None
 
 
 # -------------------------------------------------------
@@ -331,10 +337,19 @@ class ProviderManager:
         self._add_builtin(PROVIDER_GEMINI)
         self._add_builtin(PROVIDER_MINIMAX_CN)
         self._add_builtin(PROVIDER_MINIMAX)
-        self._add_builtin(PROVIDER_OLLAMA)
         self._add_builtin(PROVIDER_LMSTUDIO)
-        self._add_builtin(PROVIDER_LLAMACPP)
-        self._add_builtin(PROVIDER_MLX)
+        if _is_module_available("ollama"):
+            self._add_builtin(PROVIDER_OLLAMA)
+        else:
+            logger.warning("ollama not found, skipping Ollama provider")
+        if _is_module_available("llama_cpp"):
+            self._add_builtin(PROVIDER_LLAMACPP)
+        else:
+            logger.warning("llama_cpp not found, skipping llama.cpp provider")
+        if _is_module_available("mlx_lm"):
+            self._add_builtin(PROVIDER_MLX)
+        else:
+            logger.warning("mlx-lm not found, skipping MLX provider")
 
     def _add_builtin(self, provider: Provider):
         self.builtin_providers[provider.id] = provider
