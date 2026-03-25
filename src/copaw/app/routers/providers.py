@@ -511,7 +511,7 @@ async def get_active_models(
 @router.put(
     "/active",
     response_model=ActiveModelsInfo,
-    summary="Set agent active LLM",
+    summary="Set active LLM",
 )
 async def set_active_model(
     request: Request,
