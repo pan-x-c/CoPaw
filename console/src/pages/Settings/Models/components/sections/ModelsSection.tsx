@@ -91,6 +91,7 @@ export function ModelsSection({
     const body: ModelSlotRequest = {
       provider_id: selectedProviderId,
       model: selectedModel,
+      scope: "global",
     };
 
     setSaving(true);
