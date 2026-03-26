@@ -13,6 +13,7 @@ from .manager import (
     get_local_model,
     delete_local_model,
 )
+from .model_downloader import ModelDownloader
 from .factory import (
     create_local_chat_model,
     unload_active_model,
@@ -25,6 +26,7 @@ __all__ = [
     "LocalModelInfo",
     "DownloadProgress",
     "LocalModelManager",
+    "ModelDownloader",
     "list_local_models",
     "get_local_model",
     "delete_local_model",
