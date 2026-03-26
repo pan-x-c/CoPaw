@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import List, Literal, Optional
 from copy import deepcopy
@@ -19,6 +20,7 @@ from fastapi import (
 from pydantic import BaseModel, Field
 
 from ..agent_context import get_agent_for_request
+from ..utils import schedule_agent_reload
 from ...config.config import load_agent_config, save_agent_config
 from ...providers.provider import ProviderInfo, ModelInfo
 from ...providers.provider_manager import ActiveModelsInfo, ProviderManager
@@ -550,6 +552,9 @@ async def set_active_model(
             model=body.model,
         )
         save_agent_config(workspace.agent_id, agent_config)
+        # Hot reload agent (async, non-blocking)
+        schedule_agent_reload(request, workspace.agent_id)
+
     except (HTTPException, OSError, ValueError, TypeError) as exc:
         logger.warning(
             "Failed to save active model to agent config: %s",
