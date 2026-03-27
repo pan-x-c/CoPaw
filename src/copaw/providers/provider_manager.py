@@ -919,8 +919,6 @@ class ProviderManager:
             return GeminiProvider.model_validate(data)
         if provider_id == "ollama":
             return OllamaProvider.model_validate(data)
-        if data.get("is_local", False):
-            return DefaultProvider.model_validate(data)
         return OpenAIProvider.model_validate(data)
 
     def save_active_model(self, active_model: ModelSlotConfig):

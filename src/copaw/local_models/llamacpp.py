@@ -76,6 +76,8 @@ class LlamaCppBackend:
     def executable(self) -> Path:
         """The expected path of the llama.cpp server executable after download
         and extraction."""
+        if self.os_name == "windows":
+            return self.target_dir / "llama-server.exe"
         return self.target_dir / "llama-server"
 
     def check_llamacpp_installation(self) -> bool:

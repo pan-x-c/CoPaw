@@ -127,7 +127,7 @@ def _get_total_memory_bytes() -> int:
     if memory_bytes:
         return memory_bytes
 
-    if get_os_name() == "mac":
+    if get_os_name() == "macos":
         memory_bytes = _get_total_memory_bytes_from_sysctl()
         if memory_bytes:
             return memory_bytes
@@ -137,7 +137,7 @@ def _get_total_memory_bytes() -> int:
         if memory_bytes:
             return memory_bytes
 
-    if get_os_name() == "win":
+    if get_os_name() == "windows":
         memory_bytes = _get_total_memory_bytes_from_windows_api()
         if memory_bytes:
             return memory_bytes
