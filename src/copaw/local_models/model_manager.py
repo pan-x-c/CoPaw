@@ -122,9 +122,9 @@ class ModelManager:
 
         # check local download status for each recommended model
         for model in models:
-            model.downloaded = self.is_downloaded(model.name)
+            model.downloaded = self.is_downloaded(model.id)
             if model.downloaded:
-                model.local_path = str(self.get_model_dir(model.name))
+                model.local_path = str(self.get_model_dir(model.id))
 
         return models
 
