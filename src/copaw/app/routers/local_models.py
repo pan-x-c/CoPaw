@@ -8,10 +8,8 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel, Field
 
-from ...local_models.model_manager import LocalModelInfo
-from ...local_models.manager import LocalModelManager
+from ...local_models import LocalModelInfo, LocalModelManager
 from ...providers.provider import ModelInfo
-from ...providers.models import ModelSlotConfig
 from ...providers.provider_manager import ProviderManager
 
 router = APIRouter(prefix="/local-models", tags=["local-models"])
@@ -217,11 +215,9 @@ async def start_llamacpp_server(
     local_provider.base_url = f"http://localhost:{port}/v1"
 
     # update the active model slot to point to the new local model
-    provider_manager.save_active_model(
-        ModelSlotConfig(
-            provider_id=local_provider.id,
-            model=payload.model_name,
-        ),
+    await provider_manager.activate_model(
+        provider_id=local_provider.id,
+        model_id=payload.model_name,
     )
 
     return StartServerResponse(

@@ -433,12 +433,12 @@ class LlamaCppBackend:
                     response = await client.get(
                         f"http://127.0.0.1:{self._server_port}/health",
                     )
+                    if response.status_code < 500:
+                        return True
                 except httpx.HTTPError:
                     continue
-                if response.status_code < 500:
-                    return True
-                await asyncio.sleep(0.5)
-
+                finally:
+                    await asyncio.sleep(1)
         raise RuntimeError("Timed out waiting for llama.cpp server to start")
 
     async def _drain_server_logs(self) -> None:
