@@ -15,7 +15,6 @@ from agentscope.model import ChatModelBase
 
 from copaw.providers.provider import (
     ModelInfo,
-    DefaultProvider,
     Provider,
     ProviderInfo,
 )

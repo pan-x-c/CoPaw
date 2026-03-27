@@ -240,32 +240,3 @@ class Provider(ProviderInfo, ABC):
             require_api_key=self.require_api_key,
             generate_kwargs=self.generate_kwargs,
         )
-
-
-class DefaultProvider(Provider):
-    """Default provider implementation with no-op methods."""
-
-    async def check_connection(self, timeout: float = 5) -> tuple[bool, str]:
-        if len(self.models) > 0:
-            return True, ""
-        return False, "No models available in the default provider"
-
-    async def fetch_models(self, timeout: float = 5) -> List[ModelInfo]:
-        return self.models
-
-    async def check_model_connection(
-        self,
-        model_id: str,
-        timeout: float = 5,
-    ) -> tuple[bool, str]:
-        if model_id in {model.id for model in self.models}:
-            return True, ""
-        return False, f"Model '{model_id}' not found"
-
-    def update_config(self, config: Dict) -> None:
-        pass
-
-    def get_chat_model_instance(self, model_id: str) -> ChatModelBase:
-        raise NotImplementedError(
-            "DefaultProvider does not implement chat model",
-        )

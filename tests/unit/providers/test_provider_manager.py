@@ -10,7 +10,7 @@ import pytest
 import copaw.providers.provider_manager as provider_manager_module
 from copaw.providers.anthropic_provider import AnthropicProvider
 from copaw.providers.openai_provider import OpenAIProvider
-from copaw.providers.provider import DefaultProvider, ModelInfo
+from copaw.providers.provider import ModelInfo
 from copaw.providers.provider_manager import ProviderManager
 
 
@@ -351,22 +351,6 @@ def test_provider_from_data_dispatch_to_anthropic(isolated_secret_dir) -> None:
     )
 
     assert isinstance(provider, AnthropicProvider)
-
-
-def test_provider_from_data_dispatch_to_default_local(
-    isolated_secret_dir,
-) -> None:
-    manager = ProviderManager()
-
-    provider = manager._provider_from_data(
-        {
-            "id": "local-default",
-            "name": "Local Default",
-            "is_local": True,
-        },
-    )
-
-    assert isinstance(provider, DefaultProvider)
 
 
 def test_provider_from_data_fallback_to_openai(isolated_secret_dir) -> None:
