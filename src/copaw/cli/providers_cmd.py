@@ -674,8 +674,6 @@ def download_cmd(
     try:
         from ..local_models import (
             LocalModelManager,
-            BackendType,
-            DownloadSource,
         )
     except ImportError as exc:
         click.echo(

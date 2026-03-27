@@ -10,7 +10,6 @@ import shutil
 import threading
 import time
 import uuid
-from enum import Enum
 from pathlib import Path
 from queue import Empty
 from typing import Any, Optional
@@ -18,23 +17,19 @@ from typing import Any, Optional
 import httpx
 from pydantic import Field
 
+from .download_manager import (
+    apply_download_result,
+    begin_download_task,
+    DownloadProgressTracker,
+    DownloadTaskResult,
+    DownloadTaskStatus,
+)
 from ..utils import system_info
 from .schema import DownloadSource
 from ..providers.provider import ModelInfo
 from ..constant import DEFAULT_LOCAL_PROVIDER_DIR
 
 logger = logging.getLogger(__name__)
-
-
-class DownloadTaskStatus(str, Enum):
-    """Download lifecycle for a single downloader instance."""
-
-    IDLE = "idle"
-    PENDING = "pending"
-    DOWNLOADING = "downloading"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
 
 
 class LocalModelInfo(ModelInfo):
@@ -47,6 +42,12 @@ class LocalModelInfo(ModelInfo):
     downloaded: bool = Field(
         default=False,
         description="Whether the model is fully downloaded and ready to use",
+    )
+    local_path: str | None = Field(
+        default=None,
+        description=(
+            "Resolved local directory path when the model is downloaded"
+        ),
     )
 
 
@@ -64,25 +65,15 @@ class ModelManager:
         self._staging_dir: Optional[Path] = None
         self._final_dir: Optional[Path] = None
         self._resolved_source: Optional[DownloadSource] = None
-        self._last_size_sample = 0
-        self._last_sample_time = time.monotonic()
         self._model_dir = DEFAULT_LOCAL_PROVIDER_DIR / "models"
-        self._progress: dict[str, Any] = {
-            "status": DownloadTaskStatus.IDLE.value,
-            "downloaded_bytes": 0,
-            "total_bytes": None,
-            "speed_bytes_per_sec": 0.0,
-            "source": None,
-            "error": None,
-            "local_path": None,
-        }
+        self._progress = DownloadProgressTracker()
 
-    def get_recommended_models(self) -> list[LocalModelInfo] | None:
+    def get_recommended_models(self) -> list[LocalModelInfo]:
         """Recommend model names from the current machine capacity."""
         memory_gb = self._detect_available_memory_gb()
 
         if memory_gb < 4:
-            return None
+            return []
 
         if memory_gb <= 8:
             models = [
@@ -109,6 +100,11 @@ class ModelManager:
                     name="AgentScope/CoPaw-flash-4B-Q8_0",
                     size_bytes=5157833056,
                 ),
+                LocalModelInfo(
+                    id="Qwen3-0.6B-GGUF",
+                    name="Qwen/Qwen3-0.6B-GGUF",
+                    size_bytes=596000000,
+                ),
             ]
         else:
             models = [
@@ -127,6 +123,8 @@ class ModelManager:
         # check local download status for each recommended model
         for model in models:
             model.downloaded = self.is_downloaded(model.name)
+            if model.downloaded:
+                model.local_path = str(self.get_model_dir(model.name))
 
         return models
 
@@ -178,19 +176,13 @@ class ModelManager:
                 daemon=True,
             )
 
-            self._progress = {
-                "status": DownloadTaskStatus.PENDING.value,
-                "downloaded_bytes": 0,
-                "total_bytes": total_bytes,
-                "speed_bytes_per_sec": 0.0,
-                "source": self._resolved_source.value,
-                "error": None,
-                "local_path": None,
-            }
-            self._last_size_sample = 0
-            self._last_sample_time = time.monotonic()
+            begin_download_task(
+                self._progress,
+                total_bytes=total_bytes,
+                model_name=repo_id,
+                source=self._resolved_source.value,
+            )
             self._process.start()
-            self._progress["status"] = DownloadTaskStatus.DOWNLOADING.value
             self._monitor_thread = threading.Thread(
                 target=self._monitor_download,
                 name=f"copaw-model-download-monitor-{task_id}",
@@ -200,8 +192,7 @@ class ModelManager:
 
     def get_download_progress(self) -> dict[str, Any]:
         """Return the current download progress."""
-        with self._lock:
-            return dict(self._progress)
+        return self._progress.snapshot()
 
     def cancel_download(self) -> None:
         """Cancel the current download task."""
@@ -211,8 +202,7 @@ class ModelManager:
             active = self._is_download_active()
             if not active:
                 return
-            self._progress["status"] = DownloadTaskStatus.CANCELLED.value
-            self._progress["speed_bytes_per_sec"] = 0.0
+            self._progress.mark_cancelled()
 
         if process is not None and process.is_alive():
             process.terminate()
@@ -240,24 +230,14 @@ class ModelManager:
                 queue = self._queue
                 staging_dir = self._staging_dir
                 final_dir = self._final_dir
-                status = self._progress["status"]
+                status = self._progress.get_status()
 
-            if status == DownloadTaskStatus.CANCELLED.value:
+            if status == DownloadTaskStatus.CANCELLED:
                 return
 
             if staging_dir is not None:
                 downloaded_bytes = self._calculate_downloaded_size(staging_dir)
-                now = time.monotonic()
-                elapsed = max(now - self._last_sample_time, 1e-6)
-                speed = max(
-                    0.0,
-                    (downloaded_bytes - self._last_size_sample) / elapsed,
-                )
-                with self._lock:
-                    self._progress["downloaded_bytes"] = downloaded_bytes
-                    self._progress["speed_bytes_per_sec"] = speed
-                self._last_sample_time = now
-                self._last_size_sample = downloaded_bytes
+                self._progress.update_downloaded(downloaded_bytes)
 
             message = self._drain_queue_message(queue)
             if message is not None:
@@ -272,15 +252,11 @@ class ModelManager:
                 message = self._drain_queue_message(queue)
                 if message is None:
                     with self._lock:
-                        self._progress[
-                            "status"
-                        ] = DownloadTaskStatus.FAILED.value
-                        self._progress[
-                            "error"
-                        ] = "Download process exited unexpectedly."
-                        self._progress["speed_bytes_per_sec"] = 0.0
                         self._process = None
                         self._queue = None
+                    self._progress.mark_failed(
+                        "Download process exited unexpectedly.",
+                    )
                     if staging_dir is not None:
                         self._cleanup_path(staging_dir)
                     return
@@ -296,38 +272,35 @@ class ModelManager:
         final_dir: Optional[Path],
     ) -> None:
         """Apply the final worker message to the instance state."""
-        status = message.get("status", DownloadTaskStatus.FAILED.value)
-        if status == DownloadTaskStatus.COMPLETED.value:
+        result = DownloadTaskResult.from_dict(message)
+        if result.status == DownloadTaskStatus.COMPLETED:
             if staging_dir is None or final_dir is None:
                 raise RuntimeError("Download directories are not initialized.")
             local_path = self._promote_staging_directory(
                 staging_dir=staging_dir,
                 final_dir=final_dir,
-                local_path=Path(message["local_path"]),
+                local_path=Path(result.local_path or staging_dir),
             )
+            downloaded_bytes = self._calculate_downloaded_size(final_dir)
             with self._lock:
-                self._progress["status"] = DownloadTaskStatus.COMPLETED.value
-                self._progress[
-                    "downloaded_bytes"
-                ] = self._calculate_downloaded_size(
-                    final_dir,
-                )
-                self._progress["speed_bytes_per_sec"] = 0.0
-                self._progress["local_path"] = str(local_path)
                 self._process = None
                 self._queue = None
+            apply_download_result(
+                self._progress,
+                DownloadTaskResult(
+                    status=DownloadTaskStatus.COMPLETED,
+                    local_path=str(local_path),
+                ),
+                downloaded_bytes=downloaded_bytes,
+            )
             return
 
         if staging_dir is not None:
             self._cleanup_path(staging_dir)
         with self._lock:
-            self._progress["status"] = status
-            self._progress["error"] = (
-                message.get("error") or "Download failed."
-            )
-            self._progress["speed_bytes_per_sec"] = 0.0
             self._process = None
             self._queue = None
+        apply_download_result(self._progress, result)
 
     def _resolve_download_source(self) -> DownloadSource:
         """Choose Hugging Face when reachable, otherwise use ModelScope."""
@@ -365,17 +338,17 @@ class ModelManager:
                 local_dir=staging_dir,
             )
             queue.put(
-                {
-                    "status": DownloadTaskStatus.COMPLETED.value,
-                    "local_path": str(Path(local_path).resolve()),
-                },
+                DownloadTaskResult(
+                    status=DownloadTaskStatus.COMPLETED,
+                    local_path=str(Path(local_path).resolve()),
+                ).to_dict(),
             )
         except Exception as exc:
             queue.put(
-                {
-                    "status": DownloadTaskStatus.FAILED.value,
-                    "error": str(exc),
-                },
+                DownloadTaskResult(
+                    status=DownloadTaskStatus.FAILED,
+                    error="Download failed: " + str(exc),
+                ).to_dict(),
             )
             raise
 

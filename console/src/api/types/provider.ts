@@ -107,25 +107,41 @@ export interface DownloadTaskResponse {
   result: LocalModelResponse | null;
 }
 
-/* ---- Ollama models ---- */
-
-export interface OllamaModelResponse {
+export interface LocalModelInfo {
+  id: string;
   name: string;
-  size: number;
-  digest?: string | null;
-  modified_at?: string | null;
+  size_bytes: number;
+  downloaded: boolean;
+  local_path?: string | null;
 }
 
-export interface OllamaDownloadRequest {
-  name: string;
+export interface LocalServerStatus {
+  available: boolean;
+  installed: boolean;
+  port: number | null;
+  model_name: string | null;
+  message: string | null;
 }
 
-export interface OllamaDownloadTaskResponse {
-  task_id: string;
-  status: "pending" | "downloading" | "completed" | "failed" | "cancelled";
-  name: string;
+export interface LocalDownloadProgress {
+  status: "idle" | "pending" | "downloading" | "completed" | "failed" | "cancelled";
+  model_name: string | null;
+  downloaded_bytes: number;
+  total_bytes: number | null;
+  speed_bytes_per_sec: number;
+  source: string | null;
   error: string | null;
-  result: OllamaModelResponse | null;
+  local_path: string | null;
+}
+
+export interface LocalActionResponse {
+  status: string;
+  message: string;
+}
+
+export interface StartLocalServerRequest {
+  model_path: string;
+  model_name: string;
 }
 
 /* ---- Test Connection ---- */

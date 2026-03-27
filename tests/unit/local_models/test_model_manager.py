@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from copaw.local_models.download_manager import (
+    DownloadProgressTracker,
+    DownloadTaskStatus,
+)
 from copaw.local_models.model_manager import ModelManager
 from copaw.local_models.schema import DownloadSource
 
@@ -100,6 +104,7 @@ def test_get_download_progress_returns_idle_by_default() -> None:
 
     assert downloader.get_download_progress() == {
         "status": "idle",
+        "model_name": None,
         "downloaded_bytes": 0,
         "total_bytes": None,
         "speed_bytes_per_sec": 0.0,
@@ -115,23 +120,22 @@ def test_cancel_download_stops_active_process(tmp_path: Path) -> None:
     staging_dir.mkdir()
     (staging_dir / "partial.gguf").write_bytes(b"123")
     fake_process = _FakeProcess()
+    progress = DownloadProgressTracker()
+    progress.reset(
+        status=DownloadTaskStatus.DOWNLOADING,
+        total_bytes=10,
+        source="huggingface",
+    )
+    progress.update_downloaded(3)
 
     downloader.__dict__["_process"] = fake_process
     downloader.__dict__["_staging_dir"] = staging_dir
-    downloader.__dict__["_progress"] = {
-        "status": "downloading",
-        "downloaded_bytes": 3,
-        "total_bytes": 10,
-        "speed_bytes_per_sec": 1.0,
-        "source": "huggingface",
-        "error": None,
-        "local_path": None,
-    }
+    downloader.__dict__["_progress"] = progress
 
     downloader.cancel_download()
 
-    progress = downloader.get_download_progress()
+    progress_snapshot = downloader.get_download_progress()
     assert fake_process.terminated is True
     assert not staging_dir.exists()
-    assert progress["status"] == "cancelled"
-    assert progress["speed_bytes_per_sec"] == 0.0
+    assert progress_snapshot["status"] == "cancelled"
+    assert progress_snapshot["speed_bytes_per_sec"] == 0.0

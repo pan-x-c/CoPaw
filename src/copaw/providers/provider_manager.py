@@ -452,7 +452,7 @@ PROVIDER_ALIYUN_CODINGPLAN = OpenAIProvider(
 
 PROVIDER_LLAMACPP = OpenAIProvider(
     id="copaw-local",
-    name="Copaw Local",
+    name="CoPaw Local",
     is_local=True,
     require_api_key=False,
 )

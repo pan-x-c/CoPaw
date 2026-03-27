@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -39,17 +38,6 @@ class LocalModelInfo(BaseModel):
         description="Absolute path to model file on disk",
     )
     display_name: str = Field(default="", description="Human-friendly name")
-
-
-class DownloadProgress(BaseModel):
-    """Progress event emitted during model download."""
-
-    repo_id: str
-    filename: str
-    total_bytes: int = 0
-    downloaded_bytes: int = 0
-    status: str = "downloading"  # "downloading" | "complete" | "error"
-    error: Optional[str] = None
 
 
 class LocalModelsManifest(BaseModel):

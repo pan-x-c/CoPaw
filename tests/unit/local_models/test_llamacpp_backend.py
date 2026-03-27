@@ -4,21 +4,30 @@ from __future__ import annotations
 import asyncio
 import io
 import tarfile
+import time
 import zipfile
 from pathlib import Path
 
 import pytest
 
-from copaw.local_models import llamacpp as downloader_module
+import copaw.local_models.llamacpp as downloader_module
 from copaw.local_models.llamacpp import LlamaCppBackend
 
 
 class _FakeResponse:
-    def __init__(self, payload: bytes):
+    def __init__(
+        self,
+        payload: bytes,
+        *,
+        chunk_delay: float = 0.0,
+    ) -> None:
         self._buffer = io.BytesIO(payload)
         self.headers = {"Content-Length": str(len(payload))}
+        self._chunk_delay = chunk_delay
 
     def read(self, chunk_size: int) -> bytes:
+        if self._chunk_delay:
+            time.sleep(self._chunk_delay)
         return self._buffer.read(chunk_size)
 
     def __enter__(self) -> _FakeResponse:
@@ -79,6 +88,96 @@ def _build_downloader(
     )
 
 
+def _patch_urlopen(
+    monkeypatch: pytest.MonkeyPatch,
+    payload: bytes,
+    *,
+    chunk_delay: float = 0.0,
+) -> None:
+    monkeypatch.setattr(
+        downloader_module.urllib.request,
+        "urlopen",
+        lambda request, timeout=30: _FakeResponse(
+            payload,
+            chunk_delay=chunk_delay,
+        ),
+    )
+
+
+def _patch_download_url(
+    monkeypatch: pytest.MonkeyPatch,
+    url: str,
+) -> None:
+    monkeypatch.setattr(
+        LlamaCppBackend,
+        "download_url",
+        property(lambda self: url),
+    )
+
+
+async def _wait_for_status(
+    downloader: LlamaCppBackend,
+    *statuses: str,
+    timeout: float = 3.0,
+) -> dict[str, object]:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        progress = downloader.get_download_progress()
+        if progress["status"] in statuses:
+            return progress
+        await asyncio.sleep(0.05)
+    raise AssertionError(
+        "Timed out waiting for statuses "
+        f"{statuses}, got {downloader.get_download_progress()}",
+    )
+
+
+def test_get_download_progress_returns_idle_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    downloader = _build_downloader(monkeypatch)
+
+    assert downloader.get_download_progress() == {
+        "status": "idle",
+        "model_name": None,
+        "downloaded_bytes": 0,
+        "total_bytes": None,
+        "speed_bytes_per_sec": 0.0,
+        "source": None,
+        "error": None,
+        "local_path": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_download_supports_progress_polling(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    downloader = _build_downloader(monkeypatch)
+    dest = tmp_path / "tar-install"
+    downloader.target_dir = dest
+    url = (
+        "https://example.com/releases/b1234/"
+        "llama-b1234-bin-ubuntu-x64.tar.gz"
+    )
+
+    _patch_urlopen(monkeypatch, _make_tar_gz_payload())
+    _patch_download_url(monkeypatch, url)
+
+    downloader.download()
+    progress = await _wait_for_status(downloader, "completed")
+
+    assert dest.is_dir()
+    assert (dest / "bin" / "server").read_text() == "tar-binary"
+    assert progress["status"] == "completed"
+    assert progress["source"] == url
+    assert progress["local_path"] == str(dest)
+    assert progress["downloaded_bytes"] == progress["total_bytes"]
+    assert not list(dest.glob("*.tar.gz"))
+    assert not list(dest.glob("*.part"))
+
+
 @pytest.mark.asyncio
 async def test_download_extracts_zip_into_dest(
     monkeypatch: pytest.MonkeyPatch,
@@ -86,56 +185,24 @@ async def test_download_extracts_zip_into_dest(
 ) -> None:
     downloader = _build_downloader(monkeypatch)
     dest = tmp_path / "zip-install"
+    downloader.target_dir = dest
 
-    monkeypatch.setattr(
-        "copaw.local_models.llamacpp_downloader.urllib.request.urlopen",
-        lambda request, timeout=30: _FakeResponse(_make_zip_payload()),
-    )
-    monkeypatch.setattr(
-        downloader,
-        "get_download_url",
-        lambda: (
+    _patch_urlopen(monkeypatch, _make_zip_payload())
+    _patch_download_url(
+        monkeypatch,
+        (
             "https://example.com/releases/b1234/"
             "llama-b1234-bin-win-cpu-x64.zip"
         ),
     )
 
-    result = await downloader.download(dest)
+    downloader.download()
+    progress = await _wait_for_status(downloader, "completed")
 
-    assert result == dest
     assert dest.is_dir()
     assert (dest / "bin" / "server.exe").read_text() == "zip-binary"
+    assert progress["status"] == "completed"
     assert not list(dest.glob("*.zip"))
-    assert not list(dest.glob("*.part"))
-
-
-@pytest.mark.asyncio
-async def test_download_creates_dest_and_extracts_tar_gz(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    downloader = _build_downloader(monkeypatch)
-    dest = tmp_path / "tar-install"
-
-    monkeypatch.setattr(
-        "copaw.local_models.llamacpp_downloader.urllib.request.urlopen",
-        lambda request, timeout=30: _FakeResponse(_make_tar_gz_payload()),
-    )
-    monkeypatch.setattr(
-        downloader,
-        "get_download_url",
-        lambda: (
-            "https://example.com/releases/b1234/"
-            "llama-b1234-bin-ubuntu-x64.tar.gz"
-        ),
-    )
-
-    result = await downloader.download(dest)
-
-    assert result == dest
-    assert dest.is_dir()
-    assert (dest / "bin" / "server").read_text() == "tar-binary"
-    assert not list(dest.glob("*.tar.gz"))
     assert not list(dest.glob("*.part"))
 
 
@@ -147,36 +214,74 @@ async def test_download_rejects_existing_file_dest(
     downloader = _build_downloader(monkeypatch)
     dest_file = tmp_path / "not-a-directory"
     dest_file.write_text("content")
+    downloader.target_dir = dest_file
 
     with pytest.raises(ValueError, match="dest must be a directory path"):
-        await downloader.download(dest_file)
+        downloader.download()
 
 
 @pytest.mark.asyncio
-async def test_download_can_run_as_asyncio_task(
+async def test_cancel_download_updates_status_and_cleans_temp_file(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     downloader = _build_downloader(monkeypatch)
-    dest = tmp_path / "task-install"
+    dest = tmp_path / "cancel-install"
+    downloader.target_dir = dest
 
-    monkeypatch.setattr(
-        "copaw.local_models.llamacpp_downloader.urllib.request.urlopen",
-        lambda request, timeout=30: _FakeResponse(_make_zip_payload()),
+    _patch_urlopen(
+        monkeypatch,
+        _make_zip_payload() * 32,
+        chunk_delay=0.02,
     )
-    monkeypatch.setattr(
-        downloader,
-        "get_download_url",
-        lambda: (
+    _patch_download_url(
+        monkeypatch,
+        (
             "https://example.com/releases/b1234/"
             "llama-b1234-bin-win-cpu-x64.zip"
         ),
     )
 
-    task = asyncio.create_task(downloader.download(dest))
-    result = await task
+    downloader.download(chunk_size=64)
 
-    assert result == dest
+    await _wait_for_status(downloader, "downloading")
+    deadline = asyncio.get_running_loop().time() + 3.0
+    while asyncio.get_running_loop().time() < deadline:
+        if downloader.get_download_progress()["downloaded_bytes"] > 0:
+            break
+        await asyncio.sleep(0.02)
+
+    downloader.cancel_download()
+    progress = await _wait_for_status(downloader, "cancelled")
+
+    assert progress["status"] == "cancelled"
+    assert progress["speed_bytes_per_sec"] == 0.0
+    assert progress["local_path"] is None
+    assert not list(dest.glob("*.part"))
+
+
+@pytest.mark.asyncio
+async def test_download_starts_background_task(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    downloader = _build_downloader(monkeypatch)
+    dest = tmp_path / "task-install"
+    downloader.target_dir = dest
+
+    _patch_urlopen(monkeypatch, _make_zip_payload())
+    _patch_download_url(
+        monkeypatch,
+        (
+            "https://example.com/releases/b1234/"
+            "llama-b1234-bin-win-cpu-x64.zip"
+        ),
+    )
+
+    downloader.download()
+    progress = await _wait_for_status(downloader, "completed")
+
+    assert progress["status"] == "completed"
     assert (dest / "bin" / "server.exe").read_text() == "zip-binary"
 
 
@@ -187,24 +292,23 @@ async def test_download_flattens_single_top_level_archive_dir(
 ) -> None:
     downloader = _build_downloader(monkeypatch)
     dest = tmp_path / "flattened-install"
+    downloader.target_dir = dest
 
-    monkeypatch.setattr(
-        "copaw.local_models.llamacpp_downloader.urllib.request.urlopen",
-        lambda request, timeout=30: _FakeResponse(
-            _make_tar_gz_payload_with_top_level_dir(),
-        ),
+    _patch_urlopen(
+        monkeypatch,
+        _make_tar_gz_payload_with_top_level_dir(),
     )
-    monkeypatch.setattr(
-        downloader,
-        "get_download_url",
-        lambda: (
+    _patch_download_url(
+        monkeypatch,
+        (
             "https://example.com/releases/b1234/"
             "llama-b1234-bin-ubuntu-x64.tar.gz"
         ),
     )
 
-    result = await downloader.download(dest)
+    downloader.download()
+    progress = await _wait_for_status(downloader, "completed")
 
-    assert result == dest
+    assert progress["local_path"] == str(dest)
     assert (dest / "bin" / "server").read_text() == "tar-binary"
     assert not (dest / "llama-b1234").exists()

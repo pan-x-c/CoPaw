@@ -23,6 +23,7 @@ from .routers.agent_scoped import AgentContextMiddleware
 from .routers.voice import voice_router
 from ..envs import load_envs_into_environ
 from ..providers.provider_manager import ProviderManager
+from ..local_models.manager import LocalModelManager
 from .multi_agent_manager import MultiAgentManager
 from .migration import (
     ensure_default_agent_exists,
@@ -191,6 +192,9 @@ async def lifespan(
     # --- Model provider manager (non-reloadable, in-memory) ---
     provider_manager = ProviderManager.get_instance()
 
+    # --- Local model manager initialization ---
+    local_model_manager = LocalModelManager()
+
     # Expose to endpoints - multi-agent manager
     app.state.multi_agent_manager = multi_agent_manager
 
@@ -210,6 +214,7 @@ async def lifespan(
 
     # Global managers (shared across all agents)
     app.state.provider_manager = provider_manager
+    app.state.local_model_manager = local_model_manager
 
     # Setup approval service with default agent's channel_manager
     default_agent = await multi_agent_manager.get_agent("default")

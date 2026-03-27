@@ -7,35 +7,30 @@ import os
 import shutil
 import socket
 import tempfile
+import threading
 import urllib.request
 from contextlib import suppress
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 import httpx
 
 from copaw.constant import DEFAULT_LOCAL_PROVIDER_DIR
 
+from .download_manager import (
+    apply_download_result,
+    begin_download_task,
+    DownloadProgressTracker,
+    DownloadTaskResult,
+    DownloadTaskStatus,
+)
 from ..utils import system_info
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class DownloadProgress:
-    downloaded_bytes: int
-    total_bytes: Optional[int]
-    percent: Optional[float]
-    file_name: str
-    url: str
-
-
 class DownloadCancelled(Exception):
     pass
-
-
-ProgressCallback = Callable[[DownloadProgress], None]
 
 
 class LlamaCppBackend:
@@ -57,6 +52,10 @@ class LlamaCppBackend:
         self._server_log_task: asyncio.Task[None] | None = None
         self._server_port: int | None = None
         self._server_model_name: str | None = None
+        self._download_lock = threading.Lock()
+        self._download_thread: threading.Thread | None = None
+        self._download_cancel_event: threading.Event | None = None
+        self._progress = DownloadProgressTracker()
 
     # -----------------------------
     # Public APIs
@@ -65,7 +64,8 @@ class LlamaCppBackend:
     def download_url(self) -> str:
         """Get the download URL for the current environment configuration."""
         filename = self._build_filename()
-        return f"{self.base_url}/{self.release_tag}/{filename}"
+        base_url = self.base_url
+        return f"{base_url}/{self.release_tag}/{filename}"
 
     @property
     def executable(self) -> Path:
@@ -77,51 +77,65 @@ class LlamaCppBackend:
         """Check if the llama.cpp server executable exists."""
         return self.executable.exists()
 
-    async def download(
+    def get_download_progress(self) -> dict[str, Any]:
+        """Return the current llama.cpp download progress."""
+        return self._progress.snapshot()
+
+    def get_server_status(self) -> dict[str, Any]:
+        """Return the current llama.cpp server status snapshot."""
+        process = self._server_process
+        running = bool(process is not None and process.returncode is None)
+        return {
+            "running": running,
+            "port": self._server_port,
+            "model_name": self._server_model_name,
+            "pid": process.pid if running and process is not None else None,
+        }
+
+    def cancel_download(self) -> None:
+        """Request cancellation of the current llama.cpp download."""
+        thread: threading.Thread | None = None
+        with self._download_lock:
+            if not self._is_download_active():
+                return
+            if self._download_cancel_event is None:
+                return
+            self._download_cancel_event.set()
+            self._progress.mark_cancelled()
+            thread = self._download_thread
+
+        if thread is not None:
+            thread.join(timeout=5)
+
+    def _is_download_active(self) -> bool:
+        """Return whether the background download thread is active."""
+        return (
+            self._download_thread is not None
+            and self._download_thread.is_alive()
+        )
+
+    def download(
         self,
-        dest: str | Path,
-        on_progress: Optional[ProgressCallback] = None,
-        cancel_token: Optional[Any] = None,
         chunk_size: int = 1024 * 1024,
         timeout: int = 30,
-    ) -> Path:
-        """
-        Download the corresponding release package and extract it.
+    ) -> None:
+        """Start downloading and extracting the llama.cpp release package.
 
         Args:
-          - dest:
-              Destination directory for the extracted package.
-              The directory will be created automatically if it does not
-              exist.
-          - on_progress:
-              Progress callback, signature:
-              on_progress(progress: DownloadProgress) -> None
-          - cancel_token:
-              Optional cancel token, supports any object implementing
-              is_set() -> bool, e.g. threading.Event
           - chunk_size:
               Size of each read chunk
           - timeout:
               Network timeout in seconds
 
-        Returns:
-          - Path to the extraction directory
-
         Raises:
-          - DownloadCancelled: Download cancelled by user
-          - URLError / HTTPError: Network error
-          - ValueError: dest is an existing file path instead of a
+          - RuntimeError: another llama.cpp download is already in progress
+          - ValueError: target_dir is an existing file path instead of a
             directory
-          - OSError: File write error
-          - TypeError: cancel_token does not meet requirements
         """
-        return await asyncio.to_thread(
-            self._download_sync,
-            dest,
-            on_progress,
-            cancel_token,
-            chunk_size,
-            timeout,
+        self._start_download(
+            self.target_dir,
+            chunk_size=chunk_size,
+            timeout=timeout,
         )
 
     async def setup_server(self, model_path: Path, model_name: str) -> int:
@@ -164,7 +178,7 @@ class LlamaCppBackend:
         )
 
         try:
-            await self._wait_for_server_ready(port)
+            await self.server_ready()
         except Exception:
             await self.shutdown_server()
             raise
@@ -195,102 +209,6 @@ class LlamaCppBackend:
         self._server_log_task = None
         self._server_port = None
         self._server_model_name = None
-
-    def _download_sync(
-        self,
-        dest: str | Path,
-        on_progress: Optional[ProgressCallback] = None,
-        cancel_token: Optional[Any] = None,
-        chunk_size: int = 1024 * 1024,
-        timeout: int = 30,
-    ) -> Path:
-        """Perform the blocking download and extraction workflow."""
-        self._validate_cancel_token(cancel_token)
-
-        dest_dir = self._resolve_dest_dir(dest)
-        url = self.download_url
-        file_name = url.rsplit("/", 1)[-1]
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        final_path = dest_dir / file_name
-
-        temp_path = final_path.with_name(final_path.name + ".part")
-
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "llama-release-downloader/1.0"},
-        )
-
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                total_bytes = response.headers.get("Content-Length")
-                total_bytes_int = (
-                    int(total_bytes)
-                    if total_bytes and total_bytes.isdigit()
-                    else None
-                )
-
-                downloaded = 0
-                last_percent_int = -1
-
-                with open(temp_path, "wb") as f:
-                    while True:
-                        if self._is_cancelled(cancel_token):
-                            raise DownloadCancelled(
-                                "Download cancelled by user.",
-                            )
-
-                        chunk = response.read(chunk_size)
-                        if not chunk:
-                            break
-
-                        f.write(chunk)
-                        downloaded += len(chunk)
-
-                        if on_progress:
-                            percent = None
-                            if total_bytes_int and total_bytes_int > 0:
-                                percent = downloaded * 100.0 / total_bytes_int
-                                current_percent_int = int(percent)
-                                if current_percent_int == last_percent_int:
-                                    continue
-                                last_percent_int = current_percent_int
-
-                            on_progress(
-                                DownloadProgress(
-                                    downloaded_bytes=downloaded,
-                                    total_bytes=total_bytes_int,
-                                    percent=percent,
-                                    file_name=file_name,
-                                    url=url,
-                                ),
-                            )
-
-                shutil.move(str(temp_path), str(final_path))
-                if self._is_cancelled(cancel_token):
-                    raise DownloadCancelled("Download cancelled by user.")
-
-                self._extract_archive(final_path, dest_dir)
-                final_path.unlink(missing_ok=True)
-
-                if on_progress:
-                    on_progress(
-                        DownloadProgress(
-                            downloaded_bytes=downloaded,
-                            total_bytes=total_bytes_int,
-                            percent=100.0 if total_bytes_int else None,
-                            file_name=file_name,
-                            url=url,
-                        ),
-                    )
-
-                return dest_dir
-
-        except DownloadCancelled:
-            self._cleanup_download_files(temp_path, final_path)
-            raise
-        except Exception:
-            self._cleanup_download_files(temp_path, final_path)
-            raise
 
     # -----------------------------
     # Internal helpers
@@ -327,6 +245,142 @@ class LlamaCppBackend:
             )
         return gguf_files[0].resolve()
 
+    def _start_download(
+        self,
+        dest: str | Path,
+        chunk_size: int = 1024 * 1024,
+        timeout: int = 30,
+    ) -> None:
+        """Start downloading llama.cpp in a background thread."""
+        dest_dir = self._resolve_dest_dir(dest)
+        with self._download_lock:
+            if self._is_download_active():
+                raise RuntimeError(
+                    "A llama.cpp download is already in progress.",
+                )
+
+            self._download_cancel_event = threading.Event()
+            begin_download_task(
+                self._progress,
+                source=self.download_url,
+            )
+            self._download_thread = threading.Thread(
+                target=self._run_download_worker,
+                args=(
+                    dest_dir,
+                    chunk_size,
+                    timeout,
+                ),
+                name="copaw-llamacpp-download",
+                daemon=True,
+            )
+            self._download_thread.start()
+
+    def _run_download_worker(
+        self,
+        dest: str | Path,
+        chunk_size: int,
+        timeout: int,
+    ) -> None:
+        result: DownloadTaskResult
+        try:
+            local_path = self._download_sync(
+                dest,
+                chunk_size=chunk_size,
+                timeout=timeout,
+            )
+            result = DownloadTaskResult(
+                status=DownloadTaskStatus.COMPLETED,
+                local_path=str(local_path),
+            )
+        except DownloadCancelled as exc:
+            result = DownloadTaskResult(
+                status=DownloadTaskStatus.CANCELLED,
+                error=str(exc),
+            )
+        except (OSError, RuntimeError, ValueError, shutil.Error) as exc:
+            result = DownloadTaskResult(
+                status=DownloadTaskStatus.FAILED,
+                error=str(exc),
+            )
+        with self._download_lock:
+            self._download_thread = None
+            self._download_cancel_event = None
+        apply_download_result(self._progress, result)
+
+    def _download_sync(
+        self,
+        dest: str | Path,
+        chunk_size: int = 1024 * 1024,
+        timeout: int = 30,
+    ) -> Path:
+        """Perform the blocking download and extraction workflow."""
+        dest_dir = self._resolve_dest_dir(dest)
+        url = self.download_url
+        file_name = url.rsplit("/", 1)[-1]
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        final_path = dest_dir / file_name
+
+        temp_path = final_path.with_name(final_path.name + ".part")
+
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "llama-release-downloader/1.0"},
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                total_bytes = response.headers.get("Content-Length")
+                total_bytes_int = (
+                    int(total_bytes)
+                    if total_bytes and total_bytes.isdigit()
+                    else None
+                )
+
+                downloaded = 0
+
+                with open(temp_path, "wb") as f:
+                    while True:
+                        if self._is_download_cancelled():
+                            raise DownloadCancelled(
+                                "Download cancelled by user.",
+                            )
+
+                        chunk = response.read(chunk_size)
+                        if not chunk:
+                            break
+
+                        f.write(chunk)
+                        downloaded += len(chunk)
+
+                        self._progress.update_downloaded(
+                            downloaded,
+                            total_bytes=total_bytes_int,
+                            source=url,
+                        )
+
+                shutil.move(str(temp_path), str(final_path))
+                if self._is_download_cancelled():
+                    raise DownloadCancelled("Download cancelled by user.")
+
+                self._extract_archive(final_path, dest_dir)
+                final_path.unlink(missing_ok=True)
+
+                self._progress.update_downloaded(
+                    downloaded,
+                    total_bytes=total_bytes_int,
+                    source=url,
+                )
+
+                return dest_dir
+
+        except DownloadCancelled:
+            self._cleanup_download_files(temp_path, final_path)
+            raise
+        except Exception:
+            self._cleanup_download_files(temp_path, final_path)
+            raise
+
     @staticmethod
     def _find_free_port(host: str = "127.0.0.1") -> int:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -334,32 +388,29 @@ class LlamaCppBackend:
             sock.listen(1)
             return int(sock.getsockname()[1])
 
-    async def _wait_for_server_ready(
+    async def server_ready(
         self,
-        port: int,
-        timeout_sec: float = 60.0,
-    ) -> None:
-        if not self._server_process:
+        timeout: float = 120.0,
+    ) -> bool:
+        """Check if the llama.cpp server is ready."""
+        if not self._server_process or self._server_port is None:
             raise RuntimeError("llama.cpp server process was not created")
 
-        deadline = asyncio.get_running_loop().time() + timeout_sec
+        deadline = asyncio.get_running_loop().time() + timeout
         async with httpx.AsyncClient(timeout=2.0) as client:
             while asyncio.get_running_loop().time() < deadline:
                 if self._server_process.returncode is not None:
                     raise RuntimeError(
                         "llama.cpp server exited before becoming ready",
                     )
-
-                for endpoint in ("/health", "/v1/models"):
-                    try:
-                        response = await client.get(
-                            f"http://127.0.0.1:{port}{endpoint}",
-                        )
-                    except httpx.HTTPError:
-                        continue
-                    if response.status_code < 500:
-                        return
-
+                try:
+                    response = await client.get(
+                        f"http://127.0.0.1:{self._server_port}/health",
+                    )
+                except httpx.HTTPError:
+                    continue
+                if response.status_code < 500:
+                    return True
                 await asyncio.sleep(0.5)
 
         raise RuntimeError("Timed out waiting for llama.cpp server to start")
@@ -461,21 +512,9 @@ class LlamaCppBackend:
         with suppress(FileNotFoundError):
             archive_path.unlink(missing_ok=True)
 
-    def _validate_cancel_token(self, cancel_token: Optional[Any]) -> None:
-        if cancel_token is None:
-            return
-
-        is_set = getattr(cancel_token, "is_set", None)
-        if not callable(is_set):
-            raise TypeError(
-                "cancel_token must implement is_set() -> bool, "
-                "e.g. threading.Event",
-            )
-
-    def _is_cancelled(self, cancel_token: Optional[Any]) -> bool:
-        if cancel_token is None:
-            return False
-        return bool(cancel_token.is_set())
+    def _is_download_cancelled(self) -> bool:
+        cancel_event = self._download_cancel_event
+        return bool(cancel_event is not None and cancel_event.is_set())
 
     def _resolve_os_name(self) -> str:
         os_name = system_info.get_os_name()

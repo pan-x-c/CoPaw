@@ -3,38 +3,282 @@
 
 from __future__ import annotations
 
-import asyncio
-import logging
-from typing import Dict, List, Optional
+from pathlib import Path
+from typing import Any, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel, Field
 
 from ...local_models.model_manager import LocalModelInfo
-
-logger = logging.getLogger(__name__)
+from ...local_models.manager import LocalModelManager
 
 router = APIRouter(prefix="/local-models", tags=["local-models"])
 
 
-@router.get(
-    "/list",
-    response_model=List[LocalModelInfo],
-    summary="List local models",
-)
-async def list_local() -> List[LocalModelInfo]:
-    """List all recommended local models."""
-    # TODO
+def get_local_model_manager(request: Request) -> LocalModelManager:
+    """Helper to get the LocalModelManager instance from app state."""
+    return request.app.state.local_model_manager
+
+
+class ServerStatus(BaseModel):
+    available: bool = Field(
+        ...,
+        description="Whether llama.cpp is running and responding",
+    )
+    installed: bool = Field(..., description="Whether llama.cpp is installed")
+    port: Optional[int] = Field(
+        default=None,
+        description="Active llama.cpp server port",
+    )
+    model_name: Optional[str] = Field(
+        default=None,
+        description="Model alias currently served by llama.cpp",
+    )
+    message: Optional[str] = Field(
+        default=None,
+        description="Additional info if the server is not available",
+    )
+
+
+class DownloadProgressResponse(BaseModel):
+    status: str
+    model_name: Optional[str] = None
+    downloaded_bytes: int
+    total_bytes: Optional[int] = None
+    speed_bytes_per_sec: float
+    source: Optional[str] = None
+    error: Optional[str] = None
+    local_path: Optional[str] = None
+
+
+class StartServerRequest(BaseModel):
+    model_path: str = Field(
+        ...,
+        description="Path to a local GGUF file or repo directory",
+    )
+    model_name: str = Field(
+        ...,
+        description="Alias exposed by the llama.cpp server",
+    )
+
+
+class StartServerResponse(BaseModel):
+    port: int = Field(..., description="Port bound by the llama.cpp server")
+    model_name: str = Field(
+        ...,
+        description="Alias exposed by the llama.cpp server",
+    )
+
+
+class StartModelDownloadRequest(BaseModel):
+    model_name: str = Field(
+        ...,
+        description="Recommended local model name to download",
+    )
+
+
+class ActionResponse(BaseModel):
+    status: str = Field(..., description="Operation result status")
+    message: str = Field(..., description="Human-readable operation result")
+
+
+# =========================================================================
+# llama.cpp server related endpoints
+# ========================================================================
 
 
 @router.get(
-    "",
-    response_model=bool,
+    "/server",
+    response_model=ServerStatus,
     summary="Check if local server is available",
 )
-async def available() -> bool:
+async def server_available(
+    manager: LocalModelManager = Depends(get_local_model_manager),
+) -> ServerStatus:
     """Check if the local model server is properly installed and ready."""
-    # TODO
+    installed = manager.check_llamacpp_installation()
+    ready = False
+    message = ""
+
+    if not installed:
+        return ServerStatus(
+            available=False,
+            installed=False,
+            port=None,
+            model_name=None,
+            message="llama.cpp is not installed",
+        )
+
+    server_state = manager.get_llamacpp_server_status()
+
+    if server_state["running"]:
+        try:
+            ready = await manager.check_llamacpp_server_ready()
+        except RuntimeError as exc:
+            message = str(exc)
+    else:
+        message = "llama.cpp server is not running"
+
+    if server_state["running"] and not ready and not message:
+        message = "llama.cpp server is not responding"
+
+    return ServerStatus(
+        available=installed and ready,
+        installed=installed,
+        port=server_state["port"],
+        model_name=server_state["model_name"],
+        message=message,
+    )
 
 
-# TODO
+@router.post(
+    "/server/download",
+    response_model=ActionResponse,
+    summary="Start llama.cpp download",
+)
+async def start_llamacpp_download(
+    manager: LocalModelManager = Depends(get_local_model_manager),
+) -> ActionResponse:
+    """Start downloading the llama.cpp binary package."""
+    try:
+        manager.start_llamacpp_download()
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return ActionResponse(
+        status="accepted",
+        message="llama.cpp download started",
+    )
+
+
+@router.get(
+    "/server/download",
+    response_model=DownloadProgressResponse,
+    summary="Get llama.cpp download progress",
+)
+async def get_llamacpp_download_progress(
+    manager: LocalModelManager = Depends(get_local_model_manager),
+) -> dict[str, Any]:
+    """Return the current llama.cpp download progress snapshot."""
+    return manager.get_llamacpp_download_progress()
+
+
+@router.delete(
+    "/server/download",
+    response_model=ActionResponse,
+    summary="Cancel llama.cpp download",
+)
+async def cancel_llamacpp_download(
+    manager: LocalModelManager = Depends(get_local_model_manager),
+) -> ActionResponse:
+    """Cancel the current llama.cpp download task."""
+    manager.cancel_llamacpp_download()
+    return ActionResponse(
+        status="ok",
+        message="llama.cpp download cancellation requested",
+    )
+
+
+@router.post(
+    "/server",
+    response_model=StartServerResponse,
+    summary="Start llama.cpp server",
+)
+async def start_llamacpp_server(
+    payload: StartServerRequest,
+    manager: LocalModelManager = Depends(get_local_model_manager),
+) -> StartServerResponse:
+    """Start a local llama.cpp server for a downloaded model."""
+    try:
+        port = await manager.setup_server(
+            model_path=Path(payload.model_path).expanduser().resolve(),
+            model_name=payload.model_name,
+        )
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return StartServerResponse(
+        port=port,
+        model_name=payload.model_name,
+    )
+
+
+@router.delete(
+    "/server",
+    response_model=ActionResponse,
+    summary="Stop llama.cpp server",
+)
+async def stop_llamacpp_server(
+    manager: LocalModelManager = Depends(get_local_model_manager),
+) -> ActionResponse:
+    """Stop the active llama.cpp server."""
+    await manager.shutdown_server()
+    return ActionResponse(
+        status="ok",
+        message="llama.cpp server stopped",
+    )
+
+
+# ===============================================================
+# Local Model related endpoints
+# ===============================================================
+
+
+@router.get(
+    "/models",
+    response_model=List[LocalModelInfo],
+    summary="List recommended local models",
+)
+async def list_local(
+    manager: LocalModelManager = Depends(get_local_model_manager),
+) -> List[LocalModelInfo]:
+    """List all recommended local models."""
+    return manager.get_recommended_models() or []
+
+
+@router.post(
+    "/models/download",
+    response_model=ActionResponse,
+    summary="Start local model download",
+)
+async def start_local_model_download(
+    payload: StartModelDownloadRequest,
+    manager: LocalModelManager = Depends(get_local_model_manager),
+) -> ActionResponse:
+    """Start downloading a recommended local model."""
+    try:
+        manager.start_model_download(payload.model_name)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    return ActionResponse(
+        status="accepted",
+        message=f"Local model download started: {payload.model_name}",
+    )
+
+
+@router.get(
+    "/models/download",
+    response_model=DownloadProgressResponse,
+    summary="Get local model download progress",
+)
+async def get_local_model_download_progress(
+    manager: LocalModelManager = Depends(get_local_model_manager),
+) -> dict[str, Any]:
+    """Return the current local model download progress snapshot."""
+    return manager.get_model_download_progress()
+
+
+@router.delete(
+    "/models/download",
+    response_model=ActionResponse,
+    summary="Cancel local model download",
+)
+async def cancel_local_model_download(
+    manager: LocalModelManager = Depends(get_local_model_manager),
+) -> ActionResponse:
+    """Cancel the current local model download task."""
+    manager.cancel_model_download()
+    return ActionResponse(
+        status="ok",
+        message="Local model download cancellation requested",
+    )
