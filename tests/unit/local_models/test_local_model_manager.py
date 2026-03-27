@@ -117,9 +117,7 @@ def test_local_model_manager_forwards_sync_calls() -> None:
 
 
 @pytest.mark.asyncio
-async def test_local_model_manager_forwards_async_server_calls(
-    tmp_path: Path,
-) -> None:
+async def test_local_model_manager_forwards_async_server_calls() -> None:
     fake_llamacpp_backend = _FakeLlamaCppBackend()
     manager = LocalModelManager(
         model_manager=_FakeModelManager(),

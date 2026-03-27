@@ -50,12 +50,17 @@ def _wait_for_local_model_download(
             if status in {"completed", "failed", "cancelled"}:
                 return progress
             if timeout is not None and (time.monotonic() - start) > timeout:
-                cancel = getattr(local_model_manager, "cancel_model_download", None)
+                cancel = getattr(
+                    local_model_manager,
+                    "cancel_model_download",
+                    None,
+                )
                 if callable(cancel):
                     cancel()
                 raise click.ClickException(
                     "Timed out while waiting for the local model download to "
-                    "complete. The download has been cancelled; please try again.",
+                    "complete. The download has been cancelled; please try "
+                    "again.",
                 )
             time.sleep(0.5)
     except KeyboardInterrupt as exc:
