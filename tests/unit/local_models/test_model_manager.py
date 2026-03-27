@@ -17,6 +17,7 @@ class _FakeProcess:
         self._alive = True
         self.terminated = False
         self.killed = False
+        self.closed = False
 
     def is_alive(self) -> bool:
         return self._alive
@@ -31,6 +32,29 @@ class _FakeProcess:
 
     def join(self, timeout=None) -> None:
         del timeout
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _FakeQueue:
+    def __init__(self) -> None:
+        self.closed = False
+        self.joined = False
+
+    def close(self) -> None:
+        self.closed = True
+
+    def join_thread(self) -> None:
+        self.joined = True
+
+
+class _FakeThread:
+    def __init__(self) -> None:
+        self.join_calls: list[object] = []
+
+    def join(self, timeout=None) -> None:
+        self.join_calls.append(timeout)
 
 
 def test_download_model_uses_reachable_source(
@@ -120,6 +144,8 @@ def test_cancel_download_stops_active_process(tmp_path: Path) -> None:
     staging_dir.mkdir()
     (staging_dir / "partial.gguf").write_bytes(b"123")
     fake_process = _FakeProcess()
+    fake_queue = _FakeQueue()
+    fake_thread = _FakeThread()
     progress = DownloadProgressTracker()
     progress.reset(
         status=DownloadTaskStatus.DOWNLOADING,
@@ -129,16 +155,30 @@ def test_cancel_download_stops_active_process(tmp_path: Path) -> None:
     progress.update_downloaded(3)
 
     downloader.__dict__["_process"] = fake_process
+    downloader.__dict__["_queue"] = fake_queue
+    downloader.__dict__["_monitor_thread"] = fake_thread
     downloader.__dict__["_staging_dir"] = staging_dir
+    downloader.__dict__["_final_dir"] = tmp_path / "final"
     downloader.__dict__["_progress"] = progress
+    downloader.__dict__["_resolved_source"] = DownloadSource.HUGGINGFACE
 
     downloader.cancel_download()
 
     progress_snapshot = downloader.get_download_progress()
     assert fake_process.terminated is True
+    assert fake_process.closed is True
+    assert fake_queue.closed is True
+    assert fake_queue.joined is True
+    assert fake_thread.join_calls == [2]
     assert not staging_dir.exists()
     assert progress_snapshot["status"] == "cancelled"
     assert progress_snapshot["speed_bytes_per_sec"] == 0.0
+    assert downloader.__dict__["_process"] is None
+    assert downloader.__dict__["_queue"] is None
+    assert downloader.__dict__["_monitor_thread"] is None
+    assert downloader.__dict__["_staging_dir"] is None
+    assert downloader.__dict__["_final_dir"] is None
+    assert downloader.__dict__["_resolved_source"] is None
 
 
 def test_download_model_uses_explicit_source_without_probe(

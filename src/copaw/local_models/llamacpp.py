@@ -344,6 +344,7 @@ class LlamaCppBackend:
             suffix=f"-{file_name}",
             dir=str(dest_dir),
         )
+        os.close(temp_file_fd)
         temp_path = Path(temp_file_name)
 
         req = urllib.request.Request(
@@ -362,7 +363,7 @@ class LlamaCppBackend:
 
                 downloaded = 0
 
-                with os.fdopen(temp_file_fd, "wb") as f:
+                with open(temp_path, "wb") as f:
                     while True:
                         if self._is_download_cancelled():
                             raise DownloadCancelled(

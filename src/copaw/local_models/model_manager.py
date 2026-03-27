@@ -10,6 +10,7 @@ import shutil
 import threading
 import time
 import uuid
+from contextlib import suppress
 from pathlib import Path
 from queue import Empty
 from typing import Any, Optional
@@ -242,6 +243,8 @@ class ModelManager:
         """Cancel the current download task."""
         with self._lock:
             process = self._process
+            queue = self._queue
+            monitor_thread = self._monitor_thread
             staging_dir = self._staging_dir
             active = self._is_download_active()
             if not active:
@@ -255,12 +258,19 @@ class ModelManager:
                 process.kill()
                 process.join(timeout=2)
 
+        if (
+            monitor_thread is not None
+            and monitor_thread is not threading.current_thread()
+        ):
+            monitor_thread.join(timeout=2)
+
         if staging_dir is not None:
             self._cleanup_path(staging_dir)
 
+        self._release_download_resources(process=process, queue=queue)
+
         with self._lock:
-            self._process = None
-            self._queue = None
+            self._clear_download_state()
 
     def _is_download_active(self) -> bool:
         """Return whether a download process is still active."""
@@ -295,9 +305,12 @@ class ModelManager:
                 process.join(timeout=0.1)
                 message = self._drain_queue_message(queue)
                 if message is None:
+                    self._release_download_resources(
+                        process=process,
+                        queue=queue,
+                    )
                     with self._lock:
-                        self._process = None
-                        self._queue = None
+                        self._clear_download_state()
                     self._progress.mark_failed(
                         "Download process exited unexpectedly.",
                     )
@@ -326,10 +339,12 @@ class ModelManager:
                 local_path=Path(result.local_path or staging_dir),
             )
             downloaded_bytes = self._calculate_downloaded_size(final_dir)
+            self._release_download_resources(
+                process=self._process,
+                queue=self._queue,
+            )
             with self._lock:
-                self._process = None
-                self._queue = None
-                self._resolved_source = None
+                self._clear_download_state()
             apply_download_result(
                 self._progress,
                 DownloadTaskResult(
@@ -342,10 +357,12 @@ class ModelManager:
 
         if staging_dir is not None:
             self._cleanup_path(staging_dir)
+        self._release_download_resources(
+            process=self._process,
+            queue=self._queue,
+        )
         with self._lock:
-            self._process = None
-            self._queue = None
-            self._resolved_source = None
+            self._clear_download_state()
         apply_download_result(self._progress, result)
 
     def _resolve_download_source(self) -> DownloadSource:
@@ -591,6 +608,29 @@ class ModelManager:
             shutil.rmtree(path, ignore_errors=True)
             return
         path.unlink(missing_ok=True)
+
+    def _clear_download_state(self) -> None:
+        self._process = None
+        self._queue = None
+        self._monitor_thread = None
+        self._staging_dir = None
+        self._final_dir = None
+        self._resolved_source = None
+
+    @staticmethod
+    def _release_download_resources(
+        process: Any | None,
+        queue: Any | None,
+    ) -> None:
+        if queue is not None:
+            with suppress(AttributeError, OSError, ValueError):
+                queue.close()
+            with suppress(AttributeError, OSError, ValueError, AssertionError):
+                queue.join_thread()
+
+        if process is not None:
+            with suppress(AttributeError, OSError, ValueError):
+                process.close()
 
     def _iter_downloaded_model_dirs(self) -> list[Path]:
         candidates: list[Path] = []

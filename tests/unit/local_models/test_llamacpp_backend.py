@@ -238,6 +238,55 @@ async def test_download_rejects_existing_file_dest(
         downloader.download()
 
 
+def test_download_sync_closes_temp_fd_before_request_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    downloader = _build_downloader(monkeypatch)
+    dest = tmp_path / "request-failure-install"
+    closed_fds: list[int] = []
+    created_temp_path: Path | None = None
+
+    original_mkstemp = downloader_module.tempfile.mkstemp
+    original_close = downloader_module.os.close
+
+    def tracked_mkstemp(*args: object, **kwargs: object) -> tuple[int, str]:
+        nonlocal created_temp_path
+        fd, temp_name = original_mkstemp(*args, **kwargs)
+        created_temp_path = Path(temp_name)
+        return fd, temp_name
+
+    def tracked_close(fd: int) -> None:
+        closed_fds.append(fd)
+        original_close(fd)
+
+    monkeypatch.setattr(
+        downloader_module.tempfile,
+        "mkstemp",
+        tracked_mkstemp,
+    )
+    monkeypatch.setattr(downloader_module.os, "close", tracked_close)
+    monkeypatch.setattr(
+        downloader_module.urllib.request,
+        "urlopen",
+        lambda request, timeout=30: (_ for _ in ()).throw(OSError("boom")),
+    )
+    _patch_download_url(
+        monkeypatch,
+        (
+            "https://example.com/releases/b1234/"
+            "llama-b1234-bin-win-cpu-x64.zip"
+        ),
+    )
+
+    with pytest.raises(OSError, match="boom"):
+        downloader._download_sync(dest)
+
+    assert created_temp_path is not None
+    assert closed_fds
+    assert not created_temp_path.exists()
+
+
 @pytest.mark.asyncio
 async def test_cancel_download_updates_status_and_cleans_temp_file(
     monkeypatch: pytest.MonkeyPatch,
