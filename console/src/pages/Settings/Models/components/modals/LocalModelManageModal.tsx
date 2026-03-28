@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Button, Modal, message } from "@agentscope-ai/design";
+import { Button, Modal, Tooltip, message } from "@agentscope-ai/design";
 import { CloseOutlined } from "@ant-design/icons";
+import { Progress } from "antd";
 import type {
   ProviderInfo,
   LocalDownloadProgress,
@@ -413,10 +414,6 @@ export function LocalModelManageModal({
   const currentModelDownloadName =
     modelDownload?.model_name || t("models.localDownloadPending");
   const currentModelDownloadPercent = getProgressPercent(modelDownload);
-  const currentModelDownloadBadge =
-    currentModelDownloadPercent !== null
-      ? `${currentModelDownloadPercent}%`
-      : t("models.localDownloadPending");
 
   return (
     <Modal
@@ -466,23 +463,33 @@ export function LocalModelManageModal({
               <span className={styles.localSectionInfoValue}>
                 {currentModelDownloadName}
               </span>
-              <span className={styles.localSectionInfoMeta}>
-                {formatProgressText(modelDownload)}
-              </span>
-            </div>
-            <div className={styles.localStatusActions}>
-              <span className={styles.localStatusActionPill}>
-                {currentModelDownloadBadge}
-              </span>
-              <Button
-                danger
-                icon={<CloseOutlined />}
-                onClick={() =>
-                  handleCancelModelDownload(currentModelDownloadName)
-                }
-              >
-                {t("common.cancel")}
-              </Button>
+              <div className={styles.localRuntimeDownloadRow}>
+                <div className={styles.localRuntimeProgressBlock}>
+                  <div className={styles.localRuntimeProgressBarRow}>
+                    <Progress
+                      className={styles.localRuntimeProgress}
+                      percent={currentModelDownloadPercent ?? 0}
+                      showInfo={false}
+                      status="active"
+                      strokeColor="#ff7f16"
+                      strokeWidth={10}
+                    />
+                    <Tooltip title={t("common.cancel")}>
+                      <Button
+                        danger
+                        size="small"
+                        icon={<CloseOutlined />}
+                        onClick={() =>
+                          handleCancelModelDownload(currentModelDownloadName)
+                        }
+                      />
+                    </Tooltip>
+                  </div>
+                  <span className={styles.localRuntimeProgressMeta}>
+                    {formatProgressText(modelDownload)}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         ) : null}

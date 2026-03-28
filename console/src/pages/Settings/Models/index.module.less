@@ -951,8 +951,16 @@
 
 .localRuntimeDownloadRow {
   margin-top: 12px;
+}
+
+.localRuntimeProgressBlock {
+  width: 100%;
+  min-width: 0;
+}
+
+.localRuntimeProgressBarRow {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
 
   @media (max-width: 768px) {
@@ -961,12 +969,8 @@
   }
 }
 
-.localRuntimeProgressBlock {
-  flex: 1;
-  min-width: 0;
-}
-
 .localRuntimeProgress {
+  flex: 1;
   width: 100%;
 
   :global(.ant-progress-outer) {

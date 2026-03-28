@@ -127,28 +127,30 @@ export const LocalRuntimePanel = memo(function LocalRuntimePanel({
       {isDownloading ? (
         <div className={styles.localRuntimeDownloadRow}>
           <div className={styles.localRuntimeProgressBlock}>
-            <Progress
-              className={styles.localRuntimeProgress}
-              percent={progressPercent ?? 0}
-              showInfo={false}
-              status="active"
-              strokeColor="#ff7f16"
-              strokeWidth={10}
-            />
+            <div className={styles.localRuntimeProgressBarRow}>
+              <Progress
+                className={styles.localRuntimeProgress}
+                percent={progressPercent ?? 0}
+                showInfo={false}
+                status="active"
+                strokeColor="#ff7f16"
+                strokeWidth={10}
+              />
+              <Tooltip title={t("common.cancel")}>
+                <Button
+                  danger
+                  size="small"
+                  icon={<CloseOutlined />}
+                  onClick={onCancel}
+                />
+              </Tooltip>
+            </div>
             {progressText ? (
               <span className={styles.localRuntimeProgressMeta}>
                 {progressText}
               </span>
             ) : null}
           </div>
-          <Tooltip title={t("common.cancel")}>
-            <Button
-              danger
-              size="small"
-              icon={<CloseOutlined />}
-              onClick={onCancel}
-            />
-          </Tooltip>
         </div>
       ) : null}
     </div>
