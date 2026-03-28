@@ -34,6 +34,7 @@ from .migration import (
 # Apply log level on load so reload child process gets same level as CLI.
 logger = setup_logger(os.environ.get(LOG_LEVEL_ENV, "info"))
 
+
 # Ensure static assets are served with browser-compatible MIME types across
 # platforms (notably Windows may miss .js/.mjs mappings).
 mimetypes.init()
@@ -193,7 +194,7 @@ async def lifespan(
     provider_manager = ProviderManager.get_instance()
 
     # --- Local model manager initialization ---
-    local_model_manager = LocalModelManager()
+    local_model_manager = LocalModelManager.get_instance()
 
     # Expose to endpoints - multi-agent manager
     app.state.multi_agent_manager = multi_agent_manager
@@ -215,6 +216,8 @@ async def lifespan(
     # Global managers (shared across all agents)
     app.state.provider_manager = provider_manager
     app.state.local_model_manager = local_model_manager
+
+    provider_manager.start_local_model_resume(local_model_manager)
 
     # Setup approval service with default agent's channel_manager
     default_agent = await multi_agent_manager.get_agent("default")

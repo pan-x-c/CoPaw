@@ -448,7 +448,7 @@ PROVIDER_ALIYUN_CODINGPLAN = OpenAIProvider(
     freeze_url=True,
 )
 
-PROVIDER_LOCAL = OpenAIProvider(
+PROVIDER_COPAW = OpenAIProvider(
     id="copaw-local",
     name="CoPaw Local",
     is_local=True,
@@ -585,7 +585,6 @@ class ProviderManager:
             logger.warning("Failed to migrate legacy providers: %s", e)
         self._init_from_storage()
         self._apply_default_annotations()
-        self.update_local_models()
 
     def _prepare_disk_storage(self):
         """Prepare directory structure"""
@@ -597,7 +596,7 @@ class ProviderManager:
                 pass
 
     def _init_builtins(self):
-        self._add_builtin(PROVIDER_LOCAL)
+        self._add_builtin(PROVIDER_COPAW)
         self._add_builtin(PROVIDER_MODELSCOPE)
         self._add_builtin(PROVIDER_DASHSCOPE)
         self._add_builtin(PROVIDER_ALIYUN_CODINGPLAN)
@@ -657,6 +656,29 @@ class ProviderManager:
             is_builtin=provider_id in self.builtin_providers,
         )
         return True
+
+    def start_local_model_resume(self, local_manager) -> None:
+        """Schedule background restore of the active local model server."""
+        task = asyncio.create_task(
+            self._resume_local_model(local_manager),
+            name="copaw-local-model-resume",
+        )
+        task.add_done_callback(self._on_local_model_resume_done)
+
+    @staticmethod
+    def _on_local_model_resume_done(task: asyncio.Task[None]) -> None:
+        """Log unexpected failures from background local model restore."""
+        if task.cancelled():
+            return
+
+        exc = task.exception()
+        if exc is not None:
+            logger.warning(
+                "Background local model restore failed: %s",
+                exc,
+                exc_info=exc,
+            )
+        logger.info("Background local model restore completed")
 
     async def fetch_provider_models(
         self,
@@ -748,9 +770,6 @@ class ProviderManager:
     def maybe_probe_multimodal(self, provider_id: str, model_id: str) -> None:
         """Schedule multimodal probing for a model if capability is unknown."""
         provider = self.get_provider(provider_id)
-        if provider is None or provider.is_local:
-            return
-
         # Auto-probe multimodal if not yet probed
         for model in provider.models + provider.extra_models:
             if model.id == model_id and model.supports_multimodal is None:
@@ -1072,9 +1091,45 @@ class ProviderManager:
                     )
                     model.probe_source = "documentation"
 
-    def update_local_models(self):
-        # TODO: serve a model when starting
-        pass
+    async def _resume_local_model(self, local_manager) -> None:
+        """Resume the active local model server from the previous run."""
+        local_models = self.get_provider("copaw-local").extra_models
+        model_id = local_models[0].id if local_models else None
+        if model_id is None:
+            return
+
+        if not local_manager.check_llamacpp_installation():
+            logger.info(
+                "Skipping local model restore because llama.cpp is not "
+                "installed.",
+            )
+            return
+
+        if not local_manager.is_model_downloaded(model_id):
+            logger.warning(
+                "Skipping local model restore because model is not "
+                "downloaded: %s",
+                model_id,
+            )
+            return
+
+        try:
+            port = await local_manager.setup_server(model_id)
+        except (FileNotFoundError, RuntimeError, ValueError) as exc:
+            logger.warning(
+                "Failed to restore local model server for %s: %s",
+                model_id,
+                exc,
+            )
+            return
+
+        self.update_provider(
+            "copaw-local",
+            {
+                "base_url": f"http://127.0.0.1:{port}/v1",
+                "extra_models": [ModelInfo(id=model_id, name=model_id)],
+            },
+        )
 
     @staticmethod
     def get_instance() -> "ProviderManager":

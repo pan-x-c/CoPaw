@@ -172,6 +172,13 @@ class Provider(ProviderInfo, ABC):
             and isinstance(config["generate_kwargs"], dict)
         ):
             self.generate_kwargs = config["generate_kwargs"]
+        if "extra_models" in config and config["extra_models"] is not None:
+            self.extra_models = [
+                model
+                if isinstance(model, ModelInfo)
+                else ModelInfo.model_validate(model)
+                for model in config["extra_models"]
+            ]
 
     def get_chat_model_cls(self) -> Type[ChatModelBase]:
         """Return the chat model class associated with this provider."""

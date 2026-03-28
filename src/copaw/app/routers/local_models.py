@@ -9,7 +9,6 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel, Field
 
 from ...local_models import LocalModelInfo, LocalModelManager
-from ...providers.provider import ModelInfo
 from ...providers.provider_manager import ProviderManager
 
 router = APIRouter(prefix="/local-models", tags=["local-models"])
@@ -197,25 +196,22 @@ async def start_llamacpp_server(
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    local_provider = provider_manager.get_provider("copaw-local")
-
-    if local_provider is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Local provider not found in provider manager",
-        )
-
-    local_provider.models = [
-        ModelInfo(id=payload.model_id, name=payload.model_id),
-    ]
-    local_provider.base_url = f"http://localhost:{port}/v1"
-
-    # update the active model slot to point to the new local model
+    provider_manager.update_provider(
+        "copaw-local",
+        {
+            "base_url": f"http://127.0.0.1:{port}/v1",
+            "extra_models": [
+                {
+                    "id": payload.model_id,
+                    "name": payload.model_id,
+                },
+            ],
+        },
+    )
     await provider_manager.activate_model(
-        provider_id=local_provider.id,
+        provider_id="copaw-local",
         model_id=payload.model_id,
     )
-
     return StartServerResponse(
         port=port,
         model_name=payload.model_id,
@@ -228,10 +224,19 @@ async def start_llamacpp_server(
     summary="Stop llama.cpp server",
 )
 async def stop_llamacpp_server(
-    manager: LocalModelManager = Depends(get_local_model_manager),
+    model_manager: LocalModelManager = Depends(get_local_model_manager),
+    provider_manager: ProviderManager = Depends(get_provider_manager),
 ) -> ActionResponse:
     """Stop the active llama.cpp server."""
-    await manager.shutdown_server()
+    await model_manager.shutdown_server()
+    provider_manager.update_provider(
+        "copaw-local",
+        {
+            "base_url": "",
+            "extra_models": [],
+        },
+    )
+
     return ActionResponse(
         status="ok",
         message="llama.cpp server stopped",

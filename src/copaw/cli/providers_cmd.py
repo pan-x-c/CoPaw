@@ -26,7 +26,7 @@ def _get_local_model_manager():
         )
         raise SystemExit(1) from exc
 
-    return LocalModelManager()
+    return LocalModelManager.get_instance()
 
 
 def _wait_for_local_model_download(

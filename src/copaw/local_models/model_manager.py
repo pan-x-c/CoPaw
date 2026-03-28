@@ -118,6 +118,11 @@ class ModelManager:
                     name="CoPaw-flash-9B-Q8_0",
                     size_bytes=10590617600,
                 ),
+                LocalModelInfo(
+                    id="Qwen/Qwen3-0.6B-GGUF",
+                    name="Qwen3-0.6B-GGUF",
+                    size_bytes=596000000,
+                ),
             ]
 
         # check local download status for each recommended model

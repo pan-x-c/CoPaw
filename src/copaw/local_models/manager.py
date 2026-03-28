@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from .llamacpp import LlamaCppBackend
@@ -31,6 +32,7 @@ class LocalModelManager:
             base_url=llama_cpp_base_url,
             release_tag=llama_cpp_release_tag,
         )
+        self._server_lifecycle_lock = asyncio.Lock()
 
     def check_llamacpp_installation(self) -> bool:
         """Return whether llama.cpp is already installed locally."""
@@ -92,15 +94,26 @@ class LocalModelManager:
 
     async def setup_server(self, model_id: str) -> int:
         """Start the llama.cpp server for the specified model."""
-        return await self._llamacpp_backend.setup_server(
-            model_path=self._model_manager.get_model_dir(model_id),
-            model_name=model_id,
-        )
+        async with self._server_lifecycle_lock:
+            return await self._llamacpp_backend.setup_server(
+                model_path=self._model_manager.get_model_dir(model_id),
+                model_name=model_id,
+            )
 
     async def shutdown_server(self) -> None:
         """Stop the current llama.cpp server if it is running."""
-        await self._llamacpp_backend.shutdown_server()
+        async with self._server_lifecycle_lock:
+            await self._llamacpp_backend.shutdown_server()
 
     def force_shutdown_server(self) -> None:
         """Best-effort synchronous shutdown for process teardown paths."""
         self._llamacpp_backend.force_shutdown_server()
+
+    @staticmethod
+    def get_instance() -> LocalModelManager:
+        """Return the singleton LocalModelManager instance."""
+        # This is a simple module-level singleton pattern. In a more complex
+        # application, you might want to use a dependency injection framework.
+        if not hasattr(LocalModelManager, "_instance"):
+            LocalModelManager._instance = LocalModelManager()
+        return LocalModelManager._instance

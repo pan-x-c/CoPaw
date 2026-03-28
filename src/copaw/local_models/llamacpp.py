@@ -158,6 +158,26 @@ class LlamaCppBackend:
         if not model_path.exists():
             raise FileNotFoundError(f"Model path not found: {model_path}")
 
+        if (
+            model_name == self._server_model_name
+            and self._server_process is not None
+        ):
+            if self._server_process.returncode is None:
+                logger.info(
+                    "Requested model %s is already served by llama.cpp on "
+                    "port %s",
+                    model_name,
+                    self._server_port,
+                )
+                return self._server_port  # type: ignore[return-value]
+            else:
+                logger.warning(
+                    "Previous llama.cpp server process for model %s exited "
+                    "unexpectedly with code %s. Restarting server.",
+                    self._server_model_name,
+                    self._server_process.returncode,
+                )
+
         resolved_model_path = self._resolve_model_file(model_path)
         if self._server_process and self._server_process.returncode is None:
             await self.shutdown_server()
