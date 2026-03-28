@@ -436,10 +436,9 @@ class LlamaCppBackend:
                     )
                     if response.status_code < 500:
                         return True
-                except httpx.HTTPError:
-                    continue
-                finally:
+                except Exception:
                     await asyncio.sleep(1)
+                    continue
         raise RuntimeError("Timed out waiting for llama.cpp server to start")
 
     async def _drain_server_logs(self) -> None:

@@ -57,9 +57,9 @@ class DownloadProgressResponse(BaseModel):
 
 
 class StartServerRequest(BaseModel):
-    model_name: str = Field(
+    model_id: str = Field(
         ...,
-        description="Alias exposed by the llama.cpp server",
+        description="The model id of the downloaded local model to serve",
     )
 
 
@@ -192,7 +192,7 @@ async def start_llamacpp_server(
     """Start a local llama.cpp server for a downloaded model."""
     try:
         port = await model_manager.setup_server(
-            model_name=payload.model_name,
+            model_id=payload.model_id,
         )
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -206,19 +206,19 @@ async def start_llamacpp_server(
         )
 
     local_provider.models = [
-        ModelInfo(id=payload.model_name, name=payload.model_name),
+        ModelInfo(id=payload.model_id, name=payload.model_id),
     ]
     local_provider.base_url = f"http://localhost:{port}/v1"
 
     # update the active model slot to point to the new local model
     await provider_manager.activate_model(
         provider_id=local_provider.id,
-        model_id=payload.model_name,
+        model_id=payload.model_id,
     )
 
     return StartServerResponse(
         port=port,
-        model_name=payload.model_name,
+        model_name=payload.model_id,
     )
 
 

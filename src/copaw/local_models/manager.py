@@ -72,11 +72,11 @@ class LocalModelManager:
 
     def start_model_download(
         self,
-        model_name: str,
+        model_id: str,
         source: DownloadSource | None = None,
     ) -> None:
         """Start downloading the requested model."""
-        self._model_manager.download_model(model_name, source=source)
+        self._model_manager.download_model(model_id, source=source)
 
     def get_model_download_progress(self) -> dict[str, Any]:
         """Return the current model download progress."""
@@ -86,15 +86,15 @@ class LocalModelManager:
         """Cancel the current model download task."""
         self._model_manager.cancel_download()
 
-    def remove_downloaded_model(self, model_name: str) -> None:
+    def remove_downloaded_model(self, model_id: str) -> None:
         """Delete a downloaded local model by repo id or directory name."""
-        self._model_manager.remove_downloaded_model(model_name)
+        self._model_manager.remove_downloaded_model(model_id)
 
-    async def setup_server(self, model_name: str) -> int:
+    async def setup_server(self, model_id: str) -> int:
         """Start the llama.cpp server for the specified model."""
         return await self._llamacpp_backend.setup_server(
-            model_path=self._model_manager.get_model_dir(model_name),
-            model_name=model_name,
+            model_path=self._model_manager.get_model_dir(model_id),
+            model_name=model_id,
         )
 
     async def shutdown_server(self) -> None:

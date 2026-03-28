@@ -116,7 +116,7 @@ export interface LocalActionResponse {
 }
 
 export interface StartLocalServerRequest {
-  model_name: string;
+  model_id: string;
 }
 
 /* ---- Test Connection ---- */

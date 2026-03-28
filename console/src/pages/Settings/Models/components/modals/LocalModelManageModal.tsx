@@ -341,7 +341,7 @@ export function LocalModelManageModal({
         setStartingModelName(model.name);
         try {
           await api.startLocalServer({
-            model_name: model.name,
+            model_id: model.id,
           });
           await refreshStatus();
           onSaved();

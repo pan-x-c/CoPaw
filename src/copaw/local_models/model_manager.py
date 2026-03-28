@@ -126,13 +126,13 @@ class ModelManager:
 
         return models
 
-    def get_model_dir(self, repo_id: str) -> Path:
-        """Get the expected local path for a given model repo_id."""
-        return self._model_dir.joinpath(*repo_id.split("/"))
+    def get_model_dir(self, model_id: str) -> Path:
+        """Get the expected local path for a given model id."""
+        return self._model_dir.joinpath(*model_id.split("/"))
 
-    def is_downloaded(self, repo_id: str) -> bool:
-        """Check if a model repo_id is already downloaded."""
-        local_path = self.get_model_dir(repo_id)
+    def is_downloaded(self, model_id: str) -> bool:
+        """Check if a model id is already downloaded."""
+        local_path = self.get_model_dir(model_id)
         return local_path.exists() and any(local_path.glob("*.gguf"))
 
     def list_downloaded_models(self) -> list[LocalModelInfo]:
@@ -156,27 +156,27 @@ class ModelManager:
 
         return models
 
-    def remove_downloaded_model(self, model_name: str) -> None:
+    def remove_downloaded_model(self, model_id: str) -> None:
         """Delete a downloaded local model by repo id or directory name."""
-        model_path = self.get_model_dir(model_name)
+        model_path = self.get_model_dir(model_id)
         if model_path.exists():
             self._cleanup_path(model_path)
             self._cleanup_empty_parent_dirs(model_path.parent)
             return
 
         for model in self.list_downloaded_models():
-            if model.id != model_name:
+            if model.id != model_id:
                 continue
             resolved_path = self.get_model_dir(model.id)
             self._cleanup_path(resolved_path)
             self._cleanup_empty_parent_dirs(resolved_path.parent)
             return
 
-        raise ValueError(f"Downloaded local model not found: {model_name}")
+        raise ValueError(f"Downloaded local model not found: {model_id}")
 
     def download_model(
         self,
-        model_name: str,
+        model_id: str,
         source: DownloadSource | None = None,
     ) -> None:
         """Start downloading the selected model into the target directory."""
@@ -184,7 +184,7 @@ class ModelManager:
             if self._is_download_active():
                 raise RuntimeError("A model download is already in progress.")
 
-            repo_id = model_name
+            repo_id = model_id
             final_dir = (
                 Path(self.get_model_dir(repo_id)).expanduser().resolve()
             )
