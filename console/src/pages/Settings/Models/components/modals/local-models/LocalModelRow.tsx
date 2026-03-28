@@ -85,7 +85,7 @@ export const LocalModelRow = memo(function LocalModelRow({
             icon={<PlayCircleOutlined />}
             loading={isStarting}
             onClick={() => onStartServer(model)}
-            disabled={isModelDownloading || isServerBusy}
+            disabled={isServerBusy}
           >
             {t("models.localStartServer")}
           </Button>
