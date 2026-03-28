@@ -574,6 +574,31 @@ def test_force_shutdown_server_escalates_to_kill_when_needed(
     assert signals == [15, 9]
 
 
+def test_force_shutdown_server_uses_process_kill_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    downloader = _build_downloader(monkeypatch)
+    process = _FakeServerProcess()
+    signals: list[int] = []
+
+    downloader._server_process = process
+    downloader._server_owns_process_group = False
+    downloader._server_log_task = SimpleNamespace(done=lambda: True)
+
+    monkeypatch.setattr(downloader_module.os, "name", "nt", raising=False)
+    monkeypatch.setattr(
+        downloader,
+        "_wait_for_process_exit",
+        lambda pid, timeout: timeout < 2.0,
+    )
+    monkeypatch.setattr(process, "terminate", lambda: signals.append(15))
+    monkeypatch.setattr(process, "kill", lambda: signals.append(9))
+
+    downloader.force_shutdown_server()
+
+    assert signals == [15, 9]
+
+
 def test_is_pid_running_uses_tasklist_on_windows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

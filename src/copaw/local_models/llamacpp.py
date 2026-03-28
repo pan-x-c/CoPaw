@@ -308,11 +308,11 @@ class LlamaCppBackend:
 
         process = self._server_process
         if process and process.returncode is None:
-            self._terminate_server_process(signal.SIGTERM)
+            self._terminate_server_process()
             try:
                 await asyncio.wait_for(process.wait(), timeout=5)
             except asyncio.TimeoutError:
-                self._terminate_server_process(signal.SIGKILL)
+                self._kill_server_process()
                 await process.wait()
 
         self._reset_server_state()
@@ -323,9 +323,9 @@ class LlamaCppBackend:
 
         process = self._server_process
         if process and process.returncode is None:
-            self._terminate_server_process(signal.SIGTERM)
+            self._terminate_server_process()
             if not self._wait_for_process_exit(process.pid, timeout=5.0):
-                self._terminate_server_process(signal.SIGKILL)
+                self._kill_server_process()
                 self._wait_for_process_exit(process.pid, timeout=1.0)
 
         self._reset_server_state()
@@ -566,21 +566,31 @@ class LlamaCppBackend:
         if task and not task.done():
             task.cancel()
 
-    def _terminate_server_process(self, sig: signal.Signals) -> None:
+    def _terminate_server_process(self) -> None:
         process = self._server_process
         if process is None or process.returncode is not None:
             return
 
         if self._server_owns_process_group and os.name != "nt":
             with suppress(ProcessLookupError):
-                os.killpg(os.getpgid(process.pid), sig)
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
             return
 
         with suppress(ProcessLookupError):
-            if sig == signal.SIGKILL:
-                process.kill()
-            else:
-                process.terminate()
+            process.terminate()
+
+    def _kill_server_process(self) -> None:
+        process = self._server_process
+        if process is None or process.returncode is not None:
+            return
+
+        if self._server_owns_process_group and os.name != "nt":
+            with suppress(ProcessLookupError):
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            return
+
+        with suppress(ProcessLookupError):
+            process.kill()
 
     def _wait_for_process_exit(self, pid: int, timeout: float) -> bool:
         deadline = time.monotonic() + timeout
