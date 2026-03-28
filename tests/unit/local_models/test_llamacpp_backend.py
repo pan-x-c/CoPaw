@@ -419,6 +419,11 @@ def test_force_shutdown_server_kills_process_group_on_posix(
     downloader = _build_downloader(monkeypatch)
     process = _FakeServerProcess()
     killed: list[tuple[int, int]] = []
+    fake_os = SimpleNamespace(
+        name="posix",
+        getpgid=lambda pid: pid,
+        killpg=lambda pgid, sig: killed.append((pgid, int(sig))),
+    )
 
     downloader._server_process = process
     downloader._server_port = 8080
@@ -426,13 +431,7 @@ def test_force_shutdown_server_kills_process_group_on_posix(
     downloader._server_owns_process_group = True
     downloader._server_log_task = SimpleNamespace(done=lambda: True)
 
-    monkeypatch.setattr(downloader_module.os, "name", "posix")
-    monkeypatch.setattr(downloader_module.os, "getpgid", lambda pid: pid)
-    monkeypatch.setattr(
-        downloader_module.os,
-        "killpg",
-        lambda pgid, sig: killed.append((pgid, int(sig))),
-    )
+    monkeypatch.setattr(downloader_module, "os", fake_os)
     monkeypatch.setattr(
         downloader,
         "_wait_for_process_exit",
