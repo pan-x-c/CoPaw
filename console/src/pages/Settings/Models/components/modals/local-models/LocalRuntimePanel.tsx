@@ -136,7 +136,7 @@ export const LocalRuntimePanel = memo(function LocalRuntimePanel({
                 strokeColor="#ff7f16"
                 strokeWidth={10}
               />
-              <Tooltip title={t("common.cancel")}>
+              <Tooltip title={t("models.localCancelDownloadAction")}>
                 <Button
                   danger
                   size="small"

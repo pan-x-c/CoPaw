@@ -727,6 +727,8 @@
     "localDownloaded": "Downloaded",
     "localNotDownloaded": "Not downloaded",
     "localNoRecommendedModels": "No recommended local models available",
+    "localCancelDownloadTitle": "Cancel download",
+    "localCancelDownloadAction": "Cancel download",
     "localCancelDownloadConfirm": "Cancel download of \"{{repo}}\"?",
     "localDownloadCancelled": "Download cancelled",
     "localCancelDownloadFailed": "Failed to cancel download",

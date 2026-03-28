@@ -84,6 +84,13 @@ export function LocalModelManageModal({
   const previousLlamacppStatusRef = useRef<string | null>(null);
   const previousModelStatusRef = useRef<string | null>(null);
 
+  const getLocalModelDisplayName = (modelId: string | null) => {
+    if (!modelId) {
+      return null;
+    }
+    return localModels.find((model) => model.id === modelId)?.name ?? modelId;
+  };
+
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
       clearInterval(pollRef.current);
@@ -253,13 +260,13 @@ export function LocalModelManageModal({
 
   const handleCancelLlamacppDownload = useCallback(() => {
     Modal.confirm({
-      title: t("common.cancel"),
+      title: t("models.localCancelDownloadTitle"),
       content: t("models.localCancelDownloadConfirm", {
         repo: t("models.localLlamacppName"),
       }),
-      okText: t("common.cancel"),
+      okText: t("models.localCancelDownloadAction"),
       okButtonProps: { danger: true },
-      cancelText: t("models.cancel"),
+      cancelText: t("common.close"),
       onOk: async () => {
         try {
           await api.cancelLlamacppDownload();
@@ -313,11 +320,11 @@ export function LocalModelManageModal({
   const handleCancelModelDownload = useCallback(
     (modelName: string) => {
       Modal.confirm({
-        title: t("common.cancel"),
+        title: t("models.localCancelDownloadTitle"),
         content: t("models.localCancelDownloadConfirm", { repo: modelName }),
-        okText: t("common.cancel"),
+        okText: t("models.localCancelDownloadAction"),
         okButtonProps: { danger: true },
-        cancelText: t("models.cancel"),
+        cancelText: t("common.close"),
         onOk: async () => {
           try {
             await api.cancelLocalModelDownload();
@@ -339,7 +346,7 @@ export function LocalModelManageModal({
   const handleStartServer = useCallback(
     async (model: LocalModelInfo) => {
       const run = async () => {
-        setStartingModelName(model.name);
+        setStartingModelName(model.id);
         try {
           await api.startLocalServer({
             model_id: model.id,
@@ -360,12 +367,12 @@ export function LocalModelManageModal({
       if (
         serverStatus?.available &&
         serverStatus.model_name &&
-        serverStatus.model_name !== model.name
+        serverStatus.model_name !== model.id
       ) {
         Modal.confirm({
           title: t("models.localServerSwitchTitle"),
           content: t("models.localServerSwitchConfirm", {
-            current: serverStatus.model_name,
+            current: getLocalModelDisplayName(serverStatus.model_name),
             next: model.name,
           }),
           okText: t("models.localSwitchModel"),
@@ -377,7 +384,7 @@ export function LocalModelManageModal({
 
       await run();
     },
-    [onSaved, refreshStatus, serverStatus, t],
+    [localModels, onSaved, refreshStatus, serverStatus, t],
   );
 
   const handleStopServer = useCallback(async () => {
@@ -411,8 +418,11 @@ export function LocalModelManageModal({
   ).length;
 
   const currentRunningModelName = serverStatus?.model_name ?? null;
+  const currentRunningModelDisplayName =
+    getLocalModelDisplayName(currentRunningModelName);
   const currentModelDownloadName =
-    modelDownload?.model_name || t("models.localDownloadPending");
+    getLocalModelDisplayName(modelDownload?.model_name ?? null) ||
+    t("models.localDownloadPending");
   const currentModelDownloadPercent = getProgressPercent(modelDownload);
 
   return (
@@ -474,7 +484,7 @@ export function LocalModelManageModal({
                       strokeColor="#ff7f16"
                       strokeWidth={10}
                     />
-                    <Tooltip title={t("common.cancel")}>
+                    <Tooltip title={t("models.localCancelDownloadAction")}>
                       <Button
                         danger
                         size="small"
@@ -500,7 +510,7 @@ export function LocalModelManageModal({
               {t("models.localEngineCurrentModelLabel")}
             </span>
             <span className={styles.localSectionInfoValue}>
-              {currentRunningModelName}
+              {currentRunningModelDisplayName}
             </span>
           </div>
         ) : null}
