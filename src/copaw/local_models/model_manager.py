@@ -14,6 +14,7 @@ from contextlib import suppress
 from pathlib import Path
 from queue import Empty
 from typing import Any, Optional
+from enum import Enum
 
 import httpx
 from pydantic import Field
@@ -26,11 +27,15 @@ from .download_manager import (
     DownloadTaskStatus,
 )
 from ..utils import system_info
-from .schema import DownloadSource
 from ..providers.provider import ModelInfo
 from ..constant import DEFAULT_LOCAL_PROVIDER_DIR
 
 logger = logging.getLogger(__name__)
+
+
+class DownloadSource(str, Enum):
+    HUGGINGFACE = "huggingface"
+    MODELSCOPE = "modelscope"
 
 
 class LocalModelInfo(ModelInfo):

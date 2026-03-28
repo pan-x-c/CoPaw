@@ -8,8 +8,7 @@ from copaw.local_models.download_manager import (
     DownloadProgressTracker,
     DownloadTaskStatus,
 )
-from copaw.local_models.model_manager import ModelManager
-from copaw.local_models.schema import DownloadSource
+from copaw.local_models.model_manager import ModelManager, DownloadSource
 
 
 class _FakeProcess:

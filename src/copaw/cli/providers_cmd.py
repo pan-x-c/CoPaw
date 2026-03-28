@@ -731,7 +731,7 @@ def download_cmd(
         )
         raise SystemExit(1)
 
-    from ..local_models.schema import DownloadSource
+    from ..local_models import DownloadSource
 
     source_type = DownloadSource(source) if source else None
     source_label = source_type.value if source_type is not None else "auto"

@@ -6,8 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from copaw.local_models.manager import LocalModelManager
-from copaw.local_models.schema import DownloadSource
+from copaw.local_models.manager import LocalModelManager, DownloadSource
 
 
 class _FakeLlamaCppBackend:

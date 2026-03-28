@@ -6,9 +6,8 @@ from __future__ import annotations
 from typing import Any
 
 from .llamacpp import LlamaCppBackend
-from .schema import DownloadSource
 from .model_manager import LocalModelInfo as RecommendedLocalModelInfo
-from .model_manager import ModelManager
+from .model_manager import ModelManager, DownloadSource
 
 
 class LocalModelManager:
