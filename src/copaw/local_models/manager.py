@@ -57,6 +57,10 @@ class LocalModelManager:
         """Return the current llama.cpp server status."""
         return self._llamacpp_backend.get_server_status()
 
+    def is_llamacpp_server_transitioning(self) -> bool:
+        """Return whether the llama.cpp server is starting or stopping."""
+        return self._llamacpp_backend.is_server_transitioning()
+
     def cancel_llamacpp_download(self) -> None:
         """Cancel the current llama.cpp download task."""
         self._llamacpp_backend.cancel_download()

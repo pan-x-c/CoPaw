@@ -118,13 +118,17 @@ async def server_available(
 
     server_state = manager.get_llamacpp_server_status()
 
-    if server_state["running"]:
+    if server_state["running"] and manager.is_llamacpp_server_transitioning():
+        message = "llama.cpp server is starting"
+    elif server_state["running"]:
         try:
             ready = await manager.check_llamacpp_server_ready(
                 timeout=SERVER_STATUS_CHECK_TIMEOUT,
             )
         except RuntimeError as exc:
             message = str(exc)
+        except ValueError:
+            message = "llama.cpp server status is temporarily unavailable"
     else:
         message = "llama.cpp server is not running"
 

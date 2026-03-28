@@ -95,6 +95,7 @@ class LlamaCppBackend:
         self._server_log_task: asyncio.Task[None] | None = None
         self._server_port: int | None = None
         self._server_model_name: str | None = None
+        self._server_transitioning = False
         self._server_owns_process_group = False
         self._download_lock = threading.Lock()
         self._download_thread: threading.Thread | None = None
@@ -138,6 +139,10 @@ class LlamaCppBackend:
             "model_name": self._server_model_name,
             "pid": process.pid if running and process is not None else None,
         }
+
+    def is_server_transitioning(self) -> bool:
+        """Return whether the llama.cpp server is starting or stopping."""
+        return self._server_transitioning
 
     def cancel_download(self) -> None:
         """Request cancellation of the current llama.cpp download."""
@@ -214,6 +219,7 @@ class LlamaCppBackend:
         if self._server_process and self._server_process.returncode is None:
             await self.shutdown_server()
 
+        self._server_transitioning = True
         port = self._find_free_port()
         process_kwargs: dict[str, Any] = {}
         if os.name != "nt":
@@ -241,6 +247,8 @@ class LlamaCppBackend:
         except Exception:
             await self.shutdown_server()
             raise
+        finally:
+            self._server_transitioning = False
 
         logger.info(
             "llama.cpp server started on port %s for model %s",
@@ -311,6 +319,7 @@ class LlamaCppBackend:
 
     async def shutdown_server(self) -> None:
         """Shutdown the llama.cpp server if it's running."""
+        self._server_transitioning = True
         await self._cancel_server_log_task()
 
         process = self._server_process
@@ -326,6 +335,7 @@ class LlamaCppBackend:
 
     def force_shutdown_server(self) -> None:
         """Best-effort synchronous cleanup for shutdown and atexit paths."""
+        self._server_transitioning = True
         self._cancel_server_log_task_nowait()
 
         process = self._server_process
@@ -462,9 +472,11 @@ class LlamaCppBackend:
         try:
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 total_bytes = response.headers.get("Content-Length")
-                total_bytes_int = int(total_bytes) if (
-                    total_bytes and total_bytes.isdigit()
-                ) else None
+                total_bytes_int = (
+                    int(total_bytes)
+                    if (total_bytes and total_bytes.isdigit())
+                    else None
+                )
 
                 downloaded = 0
 
@@ -646,6 +658,7 @@ class LlamaCppBackend:
         self._server_log_task = None
         self._server_port = None
         self._server_model_name = None
+        self._server_transitioning = False
         self._server_owns_process_group = False
 
     def _shutdown_server_at_exit(self) -> None:

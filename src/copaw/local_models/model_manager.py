@@ -191,6 +191,7 @@ class ModelManager:
         source: DownloadSource | None = None,
     ) -> None:
         """Start downloading the selected model into the target directory."""
+        logger.info("Starting download for [%s] %s", source, model_id)
         with self._lock:
             if self._is_download_active():
                 raise RuntimeError("A model download is already in progress.")
