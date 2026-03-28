@@ -91,6 +91,9 @@ class ActionResponse(BaseModel):
 # ========================================================================
 
 
+SERVER_STATUS_CHECK_TIMEOUT = 3.0
+
+
 @router.get(
     "/server",
     response_model=ServerStatus,
@@ -117,7 +120,9 @@ async def server_available(
 
     if server_state["running"]:
         try:
-            ready = await manager.check_llamacpp_server_ready()
+            ready = await manager.check_llamacpp_server_ready(
+                timeout=SERVER_STATUS_CHECK_TIMEOUT,
+            )
         except RuntimeError as exc:
             message = str(exc)
     else:

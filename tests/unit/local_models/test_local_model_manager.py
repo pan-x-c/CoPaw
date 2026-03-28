@@ -27,6 +27,10 @@ class _FakeLlamaCppBackend:
     def cancel_download(self) -> None:
         self.calls.append(("cancel", None))
 
+    async def server_ready(self, timeout: float = 120.0) -> bool:
+        self.calls.append(("server_ready", timeout))
+        return True
+
     async def setup_server(self, model_path: Path, model_name: str) -> int:
         self.calls.append(("setup", (model_path, model_name)))
         return 8080
@@ -123,11 +127,14 @@ async def test_local_model_manager_forwards_async_server_calls() -> None:
         llamacpp_backend=fake_llamacpp_backend,
     )
 
+    ready = await manager.check_llamacpp_server_ready(timeout=7.5)
     port = await manager.setup_server("demo")
     await manager.shutdown_server()
 
+    assert ready is True
     assert port == 8080
     assert fake_llamacpp_backend.calls == [
+        ("server_ready", 7.5),
         ("setup", (Path("/fake/path/demo"), "demo")),
         ("shutdown", None),
     ]

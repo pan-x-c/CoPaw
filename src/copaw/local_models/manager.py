@@ -42,9 +42,12 @@ class LocalModelManager:
         """Start the llama.cpp binary download task."""
         self._llamacpp_backend.download()
 
-    async def check_llamacpp_server_ready(self) -> bool:
+    async def check_llamacpp_server_ready(
+        self,
+        timeout: float = 120.0,
+    ) -> bool:
         """Return whether the llama.cpp server is ready."""
-        return await self._llamacpp_backend.server_ready()
+        return await self._llamacpp_backend.server_ready(timeout=timeout)
 
     def get_llamacpp_download_progress(self) -> dict[str, Any]:
         """Return the current llama.cpp download progress."""

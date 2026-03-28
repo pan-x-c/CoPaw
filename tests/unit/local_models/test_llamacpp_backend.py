@@ -32,6 +32,11 @@ class _FakeServerProcess:
         self.returncode = -9
 
 
+class _FakeHttpxResponse:
+    def __init__(self, status_code: int) -> None:
+        self.status_code = status_code
+
+
 class _FakeBlockingStdout:
     def readline(self) -> bytes:
         return b""

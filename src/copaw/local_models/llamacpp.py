@@ -154,13 +154,6 @@ class LlamaCppBackend:
         if thread is not None:
             thread.join(timeout=5)
 
-    def _is_download_active(self) -> bool:
-        """Return whether the background download thread is active."""
-        return (
-            self._download_thread is not None
-            and self._download_thread.is_alive()
-        )
-
     def download(
         self,
         chunk_size: int = 1024 * 1024,
@@ -242,7 +235,9 @@ class LlamaCppBackend:
         )
 
         try:
+            logger.info("Waiting for llama.cpp server to become ready...")
             await self.server_ready()
+            logger.info("llama.cpp server is ready")
         except Exception:
             await self.shutdown_server()
             raise
@@ -253,6 +248,13 @@ class LlamaCppBackend:
             model_name,
         )
         return port
+
+    def _is_download_active(self) -> bool:
+        """Return whether the background download thread is active."""
+        return (
+            self._download_thread is not None
+            and self._download_thread.is_alive()
+        )
 
     async def _create_server_process(
         self,
@@ -273,6 +275,11 @@ class LlamaCppBackend:
             model_name,
         ]
         try:
+            logger.info(
+                "Setting up llama.cpp server for model %s at path %s",
+                model_name,
+                resolved_model_path,
+            )
             return await asyncio.create_subprocess_exec(
                 *command,
                 stdout=asyncio.subprocess.PIPE,
@@ -455,11 +462,9 @@ class LlamaCppBackend:
         try:
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 total_bytes = response.headers.get("Content-Length")
-                total_bytes_int = (
-                    int(total_bytes)
-                    if total_bytes and total_bytes.isdigit()
-                    else None
-                )
+                total_bytes_int = int(total_bytes) if (
+                    total_bytes and total_bytes.isdigit()
+                ) else None
 
                 downloaded = 0
 
@@ -523,22 +528,33 @@ class LlamaCppBackend:
         if not self._server_process or self._server_port is None:
             raise RuntimeError("llama.cpp server process was not created")
 
+        health_url = f"http://127.0.0.1:{self._server_port}/health"
         deadline = asyncio.get_running_loop().time() + timeout
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
             while asyncio.get_running_loop().time() < deadline:
                 if self._server_process.returncode is not None:
                     raise RuntimeError(
                         "llama.cpp server exited before becoming ready",
                     )
                 try:
-                    response = await client.get(
-                        f"http://127.0.0.1:{self._server_port}/health",
-                    )
+                    response = await client.get(health_url)
                     if response.status_code < 500:
                         return True
-                except Exception:
-                    await asyncio.sleep(1)
-                    continue
+
+                    logger.info(
+                        "llama.cpp health check returned %s "
+                        "while waiting for %s",
+                        response.status_code,
+                        health_url,
+                    )
+                except httpx.HTTPError as exc:
+                    logger.info(
+                        "llama.cpp health check failed for %s: %s",
+                        health_url,
+                        exc,
+                    )
+
+                await asyncio.sleep(1)
         raise RuntimeError("Timed out waiting for llama.cpp server to start")
 
     async def _drain_server_logs(self) -> None:
