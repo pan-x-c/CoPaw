@@ -59,9 +59,7 @@ interface LocalStatusSnapshot {
 
 function isBusyDownloadStatus(status: LocalDownloadStatus | null | undefined) {
   return (
-    status === "pending" ||
-    status === "downloading" ||
-    status === "canceling"
+    status === "pending" || status === "downloading" || status === "canceling"
   );
 }
 
