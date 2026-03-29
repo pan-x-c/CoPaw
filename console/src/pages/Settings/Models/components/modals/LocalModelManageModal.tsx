@@ -66,9 +66,7 @@ interface LocalStatusSnapshot {
 }
 
 function isBusyDownloadStatus(status: LocalDownloadStatus | null | undefined) {
-  return (
-    status === "pending" || status === "downloading" || status === "canceling"
-  );
+  return status != null && isDownloadActive(status);
 }
 
 interface LocalModelManageModalProps {
