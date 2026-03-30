@@ -121,10 +121,10 @@ To install with Ollama support:
 curl -fsSL https://copaw.agentscope.io/install.sh | bash -s -- --extras ollama
 ```
 
-To install with multiple extras (e.g., Ollama + llama.cpp):
+To install with multiple extras (e.g., Ollama + local):
 
 ```bash
-curl -fsSL https://copaw.agentscope.io/install.sh | bash -s -- --extras ollama,llamacpp
+curl -fsSL https://copaw.agentscope.io/install.sh | bash -s -- --extras ollama,local
 ```
 
 **Windows (CMD):**
