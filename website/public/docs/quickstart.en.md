@@ -276,14 +276,14 @@ See [Models - Configure cloud providers](./models).
 
 1. Install local model backend:
 
-  - CoPaw Local (llama.cpp): download `llama.cpp` inside CoPaw Local provider settings, see [Models - Local providers Configuration](./models) for details.
-  - Ollama: install Ollama from [Ollama website](https://ollama.com/download) and run the Ollama service.
-  - LM Studio: install LM Studio from [LM Studio website](https://lmstudio.ai/download) and run the LM Studio service.
+- CoPaw Local (llama.cpp): download `llama.cpp` inside CoPaw Local provider settings, see [Models - Local providers Configuration](./models) for details.
+- Ollama: install Ollama from [Ollama website](https://ollama.com/download) and run the Ollama service.
+- LM Studio: install LM Studio from [LM Studio website](https://lmstudio.ai/download) and run the LM Studio service.
 
 2. Download models:
 
-  - For CoPaw Local (llama.cpp), you can download models directly from the provider settings in the Console, or manually place GGUF model files in the local models directory (default `~/.copaw/local_models/models/<repo_id>/<model_name>`).
-  - For Ollama and LM Studio, you need to add models in their respective services first, then CoPaw can automatically fetch the model list and connect to them.
+- For CoPaw Local (llama.cpp), you can download models directly from the provider settings in the Console, or manually place GGUF model files in the local models directory (default `~/.copaw/local_models/models/<repo_id>/<model_name>`).
+- For Ollama and LM Studio, you need to add models in their respective services first, then CoPaw can automatically fetch the model list and connect to them.
 
 3. Select the local provider and model in the Console
 
