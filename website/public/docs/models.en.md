@@ -67,7 +67,7 @@ When configuring CoPaw Local for the first time, you need to download the llama.
 
 ![Download llama.cpp]()
 
-After downloading llama.cpp, the page will display a list of recommended models based on your machine. You can select the models you need to download. If you want to use other models, you can add them by entering the *Model Repository ID* and *Download Source*. The Model Repository ID refers to the identifier of the model in ModelScope / Hugging Face, such as `Qwen/Qwen3-0.6B-GGUF`. The Download Source refers to the source for downloading the model. Currently, ModelScope and Hugging Face are supported.
+After downloading llama.cpp, the page will display a list of recommended models based on your machine. You can select the models you need to download. If you want to use other models, you can add them by entering the _Model Repository ID_ and _Download Source_. The Model Repository ID refers to the identifier of the model in ModelScope / Hugging Face, such as `Qwen/Qwen3-0.6B-GGUF`. The Download Source refers to the source for downloading the model. Currently, ModelScope and Hugging Face are supported.
 
 ![Download Model]()
 
@@ -127,7 +127,7 @@ You can add a new provider by clicking **Add Provider** in the upper right corne
 
 #### Configure Provider
 
-After adding a provider, go to its **Settings** page to configure the API access information, including *Base URL* and *API Key*.
+After adding a provider, go to its **Settings** page to configure the API access information, including _Base URL_ and _API Key_.
 
 ![Custom Provider Settings]()
 

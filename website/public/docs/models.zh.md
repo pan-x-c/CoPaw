@@ -55,7 +55,6 @@ CoPaw 支持当前支持的本地供应商包括：
 
 其中 CoPaw Local (llama.cpp) 内置在 CoPaw 中，无需额外安装其他软件，Ollama 和 LM Studio 需要用户提前安装好对应的软件。
 
-
 #### CoPaw Local (llama.cpp) 配置
 
 CoPaw Local 是基于 llama.cpp 的本地模型提供商，可以进入 **模型** 界面进行配置和管理。
@@ -68,7 +67,7 @@ CoPaw Local 是基于 llama.cpp 的本地模型提供商，可以进入 **模型
 
 ![下载 llama.cpp]()
 
-在 llama.cpp 下载完成后，该页面会根据当前机器显示推荐的模型列表，您可以选择需要的模型进行下载，如果您希望使用其他模型，也可以通过填写 *模型仓库 ID* 以及 *下载源* 来添加其他模型，模型仓库 ID 是指模型在 ModelScope / Hugging Face 等模型仓库中的标识，例如 `Qwen/Qwen3-0.6B-GGUF`，下载源是指下载模型的途径，目前支持 ModelScope 和 Hugging Face 两种下载源。
+在 llama.cpp 下载完成后，该页面会根据当前机器显示推荐的模型列表，您可以选择需要的模型进行下载，如果您希望使用其他模型，也可以通过填写 _模型仓库 ID_ 以及 _下载源_ 来添加其他模型，模型仓库 ID 是指模型在 ModelScope / Hugging Face 等模型仓库中的标识，例如 `Qwen/Qwen3-0.6B-GGUF`，下载源是指下载模型的途径，目前支持 ModelScope 和 Hugging Face 两种下载源。
 
 ![下载模型]()
 
@@ -128,7 +127,7 @@ LM Studio 默认不会开启模型 API 服务，因此在 LM Studio 安装完成
 
 #### 配置供应商
 
-供应商添加完成后，您可以进入该供应商的 **设置** 页面来配置该供应商的 API 访问信息，包括 *基础 URL* 以及 *API 秘钥* 。
+供应商添加完成后，您可以进入该供应商的 **设置** 页面来配置该供应商的 API 访问信息，包括 _基础 URL_ 以及 _API 秘钥_ 。
 
 ![自定义供应商设置]()
 
@@ -153,7 +152,6 @@ LM Studio 默认不会开启模型 API 服务，因此在 LM Studio 安装完成
 ### 模型配置文件
 
 CoPaw 中所有提供商的配置都会保存在 `$COPAW_SECRET_DIR/providers` 文件夹中（默认 `~/.copaw.secret/providers`），内置的提供商配置会放在 `builtin` 目录下，而用户添加的自定义提供商配置会放在 `custom` 目录下，每个提供商会对应一个 JSON 文件来保存其配置信息，文件名为该提供商的 ID，例如提供商 ID 为 `Qwen` 的提供商的配置文件为 `Qwen.json`，文件内容包含该提供商的 API 访问信息以及模型列表等信息。但不建议普通用户直接修改这些配置文件，以免造成不必要的错误，另外对配置文件的修改需要重启 CoPaw 后才会生效。
-
 
 ### 本地模型
 
