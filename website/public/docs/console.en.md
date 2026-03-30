@@ -350,7 +350,7 @@ Configure LLM providers and select the default model for agents. See [Models](./
 
 On this page you can:
 
-- Configure Clould Providers (ModelScope, DashScope, OpenAI, Anthropic, etc.)
+- Configure Cloud Providers (ModelScope, DashScope, OpenAI, Anthropic, etc.)
 - Configure Local Providers (llama.cpp, Ollama, LM Studio)
 - Add Custom Providers by filling in API details
 - Select the default model for agents
