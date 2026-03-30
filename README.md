@@ -351,9 +351,9 @@ CoPaw can run LLMs entirely on your machine — no API keys or cloud services re
 
 | Backend       | Best for                                 | Install                                                              |
 | ------------- | ---------------------------------------- | -------------------------------------------------------------------- |
-| **llama.cpp** | Cross-platform (macOS / Linux / Windows) | `pip install 'copaw[local]'` or `bash install.sh --extras local` |
-| **Ollama**    | Cross-platform (requires Ollama service) | `pip install 'copaw'`                                            |
-| **LM Studio** | Cross-platform (requires LM Studio service) | `pip install 'copaw'`                                         |
+| **llama.cpp** | Cross-platform (macOS / Linux / Windows) | No extra installation required; click "Download Llama.cpp" in the web UI. |
+| **Ollama**    | Cross-platform (requires Ollama service) | Install and start the Ollama app in advance. |
+| **LM Studio** | Cross-platform (requires LM Studio service) | Install and start the LM Studio app in advance. |
 
 ---
 

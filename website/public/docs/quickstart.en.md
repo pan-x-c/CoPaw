@@ -282,7 +282,7 @@ See [Models - Configure cloud providers](./models).
 
 2. Download models:
 
-- For CoPaw Local (llama.cpp), you can download models directly from the provider settings in the Console, or manually place GGUF model files in the local models directory (default `~/.copaw/local_models/models/<repo_id>/<model_name>`).
+- For CoPaw Local (llama.cpp), you can download models directly from the provider settings in the Console, or manually place GGUF model files in the local models directory (default `~/.copaw/local_models/models/<org>/<model>`, for example: `~/.copaw/local_models/models/Qwen/Qwen3-0.6B-GGUF`).
 - For Ollama and LM Studio, you need to add models in their respective services first, then CoPaw can automatically fetch the model list and connect to them.
 
 3. Select the local provider and model in the Console

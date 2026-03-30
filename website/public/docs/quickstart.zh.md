@@ -263,7 +263,7 @@ CoPaw 需要大语言模型才能工作。你可以选择以下任一方式：
 
 2. 下载模型：
 
-- 对于 CoPaw Local（llama.cpp），你可以直接在控制台的提供商设置中下载模型，或者手动将 GGUF 模型文件放到本地模型目录中（默认 `~/.copaw/local_models/models`）。
+- 对于 CoPaw Local（llama.cpp），你可以直接在控制台的提供商设置中下载模型，或者手动将 GGUF 模型文件放到本地模型目录中（默认 `~/.copaw/local_models/models/<org>/<model>`，例如 `~/.copaw/local_models/models/Qwen/Qwen3-0.6B-GGUF`）。
 - 对于 Ollama 和 LM Studio，需要先在各自服务中添加模型，之后 CoPaw 才能自动获取模型列表并连接。
 
 3. 在控制台选择本地提供商和模型
