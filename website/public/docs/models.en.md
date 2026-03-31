@@ -95,7 +95,7 @@ PARAMETER top_p 0.95
 ollama create copaw-flash -f copaw-flash.txt
 ```
 
-1. Go back to the CoPaw Ollama provider page and click **Discover Models** to add the model to CoPaw.
+4. Go back to the CoPaw Ollama provider page and click **Discover Models** to add the model to CoPaw.
 
 After installing and configuring Ollama, go to the **Models** page of the CoPaw Ollama provider and click **Discover Models** to get the list of available Ollama models. After fetching, you can further click **Test Connection** to verify if the models are working properly.
 
