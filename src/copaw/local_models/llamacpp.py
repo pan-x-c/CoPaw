@@ -126,14 +126,24 @@ class LlamaCppBackend:
 
     def check_llamacpp_installation(self) -> tuple[bool, str]:
         """Check if the llama.cpp server executable exists."""
-        if self.os_name == "macos":
-            supported, message = self._ensure_supported_macos_version()
-            if not supported:
-                return False, message
         if self.executable.exists():
             return True, ""
         else:
             return False, "llama.cpp is not installed"
+
+    def check_llamacpp_installability(self) -> tuple[bool, str]:
+        """Check whether the current environment can install llama.cpp."""
+        if self.os_name == "macos":
+            supported, message = self._ensure_supported_macos_version()
+            if not supported:
+                return False, message
+
+        try:
+            self._build_filename()
+        except RuntimeError as exc:
+            return False, str(exc)
+
+        return True, ""
 
     def get_download_progress(self) -> dict[str, Any]:
         """Return the current llama.cpp download progress."""
@@ -187,6 +197,9 @@ class LlamaCppBackend:
           - ValueError: target_dir is an existing file path instead of a
             directory
         """
+        installable, message = self.check_llamacpp_installability()
+        if not installable:
+            raise RuntimeError(message)
         self._start_download(
             self.target_dir,
             chunk_size=chunk_size,
@@ -200,8 +213,9 @@ class LlamaCppBackend:
             model_path: Path to a local HF repo directory or GGUF file
             model_name: Name of the model to be used in the server
         """
-        if not self.check_llamacpp_installation():
-            raise RuntimeError("llama.cpp server is not installed")
+        installed, message = self.check_llamacpp_installation()
+        if not installed:
+            raise RuntimeError(message or "llama.cpp server is not installed")
         if not model_path.exists():
             raise FileNotFoundError(f"Model path not found: {model_path}")
 
@@ -294,7 +308,7 @@ class LlamaCppBackend:
         ]
 
         # Add GPU layers if NVIDIA GPU is available
-        if self.backend == "cuda":
+        if self.backend == "cuda" and self.os_name == "windows":
             command.extend(["--gpu-layers", "all"])
 
         try:

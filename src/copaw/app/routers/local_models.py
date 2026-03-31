@@ -29,6 +29,10 @@ class ServerStatus(BaseModel):
         ...,
         description="Whether llama.cpp is running and responding",
     )
+    installable: bool = Field(
+        ...,
+        description="Whether the current environment can install llama.cpp",
+    )
     installed: bool = Field(..., description="Whether llama.cpp is installed")
     port: Optional[int] = Field(
         default=None,
@@ -103,16 +107,32 @@ async def server_available(
     manager: LocalModelManager = Depends(get_local_model_manager),
 ) -> ServerStatus:
     """Check if the local model server is properly installed and ready."""
+    installable, install_message = manager.check_llamacpp_installability()
+
+    if not installable:
+        return ServerStatus(
+            available=False,
+            installable=False,
+            installed=False,
+            port=None,
+            model_name=None,
+            message=(
+                install_message
+                or "Current environment does not support llama.cpps"
+            ),
+        )
+
     installed, message = manager.check_llamacpp_installation()
     ready = False
 
     if not installed:
         return ServerStatus(
             available=False,
+            installable=installable,
             installed=False,
             port=None,
             model_name=None,
-            message=message,
+            message=message or install_message,
         )
 
     server_state = manager.get_llamacpp_server_status()
@@ -136,6 +156,7 @@ async def server_available(
 
     return ServerStatus(
         available=installed and ready,
+        installable=installable,
         installed=installed,
         port=server_state["port"],
         model_name=server_state["model_name"],

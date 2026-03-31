@@ -173,7 +173,7 @@ def test_init_rejects_macos_lower_than_13(
         base_url="https://example.com/releases",
         release_tag="b1234",
     )
-    ok, message = llamacpp.check_llamacpp_installation()
+    ok, message = llamacpp.check_llamacpp_installability()
     assert not ok
     assert (
         message == "Unsupported macOS version: 12.7.6 (requires 13.3 or later)"
@@ -544,7 +544,7 @@ async def test_setup_server_falls_back_on_windows_not_implemented(
     monkeypatch.setattr(
         downloader,
         "check_llamacpp_installation",
-        lambda: True,
+        lambda: (True, ""),
     )
     monkeypatch.setattr(
         downloader_module.asyncio,
