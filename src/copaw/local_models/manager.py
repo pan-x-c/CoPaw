@@ -35,7 +35,7 @@ class LocalModelManager:
         )
         self._server_lifecycle_lock = asyncio.Lock()
 
-    def check_llamacpp_installation(self) -> bool:
+    def check_llamacpp_installation(self) -> tuple[bool, str]:
         """Return whether llama.cpp is already installed locally."""
         return self._llamacpp_backend.check_llamacpp_installation()
 

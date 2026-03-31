@@ -103,9 +103,8 @@ async def server_available(
     manager: LocalModelManager = Depends(get_local_model_manager),
 ) -> ServerStatus:
     """Check if the local model server is properly installed and ready."""
-    installed = manager.check_llamacpp_installation()
+    installed, message = manager.check_llamacpp_installation()
     ready = False
-    message = ""
 
     if not installed:
         return ServerStatus(
@@ -113,7 +112,7 @@ async def server_available(
             installed=False,
             port=None,
             model_name=None,
-            message="llama.cpp is not installed",
+            message=message,
         )
 
     server_state = manager.get_llamacpp_server_status()
