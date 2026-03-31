@@ -85,12 +85,12 @@ export async function request<T = unknown>(
       const text = await response.text().catch(() => "");
       const contentType = response.headers.get("content-type") || "";
       const errorMessage = getErrorMessageFromBody(text, contentType);
-      
+
       // Preserve raw body for parseErrorDetail() to extract structured fields
       const finalMessage = errorMessage
         ? `${errorMessage} - ${text}`
         : `Request failed: ${response.status} ${response.statusText}`;
-      
+
       throw new Error(finalMessage);
     }
 
