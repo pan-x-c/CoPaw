@@ -118,7 +118,7 @@ async def server_available(
             model_name=None,
             message=(
                 install_message
-                or "Current environment does not support llama.cpps"
+                or "Current environment does not support llama.cpp"
             ),
         )
 

@@ -733,7 +733,7 @@
     "localEngineCurrentModelLabel": "当前服务模型",
     "localEngineNextStepLabel": "下一步",
     "localEngineHealthLabel": "引擎状态",
-    "localEngineStatusHint": "请在下方列表中下载并启动模型合适的模型",
+    "localEngineStatusHint": "请在下方列表中下载并启动合适的模型",
     "localStartServer": "启动",
     "localStopServer": "停止",
     "localServerStartFailed": "启动本地服务失败",

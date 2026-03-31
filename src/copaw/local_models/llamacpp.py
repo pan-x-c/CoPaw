@@ -82,14 +82,13 @@ class LlamaCppBackend:
     and setup.
     """
 
-    _MINI_MACOS_VERSION = (13, 3)
+    _MIN_MACOS_VERSION = (13, 3)
 
     def __init__(self, base_url: str, release_tag: str):
         self.base_url = base_url.rstrip("/")
         self.release_tag = release_tag
 
         self.os_name = self._resolve_os_name()
-        # self._ensure_supported_macos_version()
         self.arch = self._resolve_arch()
         self.cuda_version = self._resolve_cuda_version()
         self.backend = self._resolve_backend()
@@ -309,7 +308,7 @@ class LlamaCppBackend:
 
         # Add GPU layers if NVIDIA GPU is available
         if self.backend == "cuda" and self.os_name == "windows":
-            command.extend(["--gpu-layers", "all"])
+            command.extend(["--gpu-layers", "-1"])
 
         try:
             logger.info(
@@ -805,10 +804,10 @@ class LlamaCppBackend:
             logger.warning("Unable to determine macOS version for llama.cpp")
             return False, "Unknown macOS version"
 
-        if macos_version < self._MINI_MACOS_VERSION:
+        if macos_version < self._MIN_MACOS_VERSION:
             current_version = ".".join(str(part) for part in macos_version)
             min_version = ".".join(
-                str(part) for part in self._MINI_MACOS_VERSION
+                str(part) for part in self._MIN_MACOS_VERSION
             )
             return (
                 False,
