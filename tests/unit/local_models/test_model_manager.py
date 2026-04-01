@@ -363,3 +363,37 @@ def test_list_downloaded_models_ignores_temporary_download_dirs(
     models = downloader.list_downloaded_models()
 
     assert [model.id for model in models] == ["Qwen/Qwen3-0.6B-GGUF"]
+
+
+def test_download_worker_sanitizes_standard_streams(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    queue_messages: list[dict[str, object]] = []
+    calls: list[str] = []
+
+    class _Queue:
+        def put(self, item):
+            queue_messages.append(item)
+
+    monkeypatch.setattr(
+        "copaw.local_models.model_manager.ensure_standard_streams",
+        lambda: calls.append("sanitized"),
+    )
+    monkeypatch.setattr(
+        ModelManager,
+        "_download_to_directory",
+        staticmethod(lambda **kwargs: str(tmp_path / "downloaded")),
+    )
+
+    getattr(ModelManager, "_download_worker")(
+        {
+            "repo_id": "AgentScope/demo",
+            "source": "modelscope",
+            "staging_dir": str(tmp_path / "staging"),
+        },
+        _Queue(),
+    )
+
+    assert calls == ["sanitized"]
+    assert queue_messages[0]["status"] == "completed"

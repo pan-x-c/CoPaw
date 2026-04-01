@@ -10,7 +10,7 @@ import shutil
 import threading
 import time
 import uuid
-from contextlib import contextmanager, suppress
+from contextlib import suppress
 from pathlib import Path
 from queue import Empty
 from typing import Any, Optional
@@ -28,6 +28,7 @@ from .download_manager import (
     DownloadTaskStatus,
 )
 from ..utils import system_info
+from ..utils.stdio import ensure_standard_streams
 from ..providers.provider import ModelInfo
 from ..constant import DEFAULT_LOCAL_PROVIDER_DIR
 
@@ -408,6 +409,7 @@ class ModelManager:
     @staticmethod
     def _download_worker(payload: dict[str, Any], queue: Any) -> None:
         """Run the blocking SDK download in a child process."""
+        ensure_standard_streams()
         repo_id = payload["repo_id"]
         source = DownloadSource(payload["source"])
         staging_dir = Path(payload["staging_dir"]).expanduser().resolve()
@@ -481,49 +483,10 @@ class ModelManager:
         local_dir: Path,
     ) -> str:
         """Download a model repository from ModelScope."""
-        with ModelManager._with_modelscope_tqdm_disabled():
-            return ModelManager._get_modelscope_snapshot_download()(
-                model_id=repo_id,
-                local_dir=str(local_dir),
-            )
-
-    @staticmethod
-    @contextmanager
-    def _with_modelscope_tqdm_disabled() -> Any:
-        """Temporarily disable ModelScope tqdm output.
-
-        Windows desktop installs can run without a valid stderr console handle,
-        which makes tqdm initialization fail with ``OSError: [Errno 22]
-        Invalid argument`` when it tries to flush the stream.
-        """
-        patched_modules: list[tuple[Any, Any]] = []
-        module_names = (
-            "modelscope.utils.thread_utils",
-            "modelscope.hub.callback",
+        return ModelManager._get_modelscope_snapshot_download()(
+            model_id=repo_id,
+            local_dir=str(local_dir),
         )
-
-        try:
-            for module_name in module_names:
-                module = importlib.import_module(module_name)
-                original_tqdm = getattr(module, "tqdm", None)
-                if original_tqdm is None:
-                    continue
-
-                def _disabled_tqdm(
-                    *args: Any,
-                    __orig=original_tqdm,
-                    **kwargs: Any,
-                ) -> Any:
-                    kwargs["disable"] = True
-                    return __orig(*args, **kwargs)
-
-                setattr(module, "tqdm", _disabled_tqdm)
-                patched_modules.append((module, original_tqdm))
-
-            yield
-        finally:
-            for module, original_tqdm in reversed(patched_modules):
-                setattr(module, "tqdm", original_tqdm)
 
     def _estimate_huggingface_size(
         self,
