@@ -48,7 +48,7 @@ CoPaw Local will automatically record the model's running state. If you close th
 
 ## Ollama Configuration
 
-Before using Ollama, you need to install latest [Ollama](https://ollama.com/download) on your machine, download at least one model, and set the Context Length to at least 32k on the settings page.
+Before using Ollama, you need to install the latest version of [Ollama](https://ollama.com/download) on your machine, download at least one model, and set the Context Length to at least 32k on the settings page.
 
 ![Ollama Settings](https://gw.alicdn.com/imgextra/i4/O1CN01pWWxlV1QiApLwDzbU_!!6000000002009-2-tps-1912-1510.png)
 
@@ -99,7 +99,7 @@ After installing and configuring Ollama, go to the **Models** page of the CoPaw 
 
 ## LM Studio Configuration
 
-Before using LM Studio, you need to install latest [LM Studio](https://lmstudio.ai/download) on your machine.
+Before using LM Studio, you need to install the latest version of [LM Studio](https://lmstudio.ai/download) on your machine.
 
 By default, LM Studio does not enable the model API service. After installing LM Studio and downloading models, go to **Developer -> Local Server** to start the local model service and note the API address, which defaults to `http://localhost:1234`.
 
