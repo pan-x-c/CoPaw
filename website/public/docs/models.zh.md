@@ -4,13 +4,11 @@
 
 ![设置模型](https://gw.alicdn.com/imgextra/i3/O1CN01MmM8iv1rcfh95wdn3_!!6000000005652-2-tps-3394-1880.png)
 
-
 CoPaw 支持多种 LLM 提供商：
 
 - **本地提供商**（llama.cpp / Ollama / LM Studio）
 - **云提供商**（一般需要 API Key）
 - **自定义提供商**（如果预设的本地和云提供商无法满足您的需求）
-
 
 CoPaw 当前支持的本地供应商包括：
 

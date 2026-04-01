@@ -73,6 +73,7 @@ class ModelManager:
         self._final_dir: Optional[Path] = None
         self._resolved_source: Optional[DownloadSource] = None
         self._model_dir = DEFAULT_LOCAL_PROVIDER_DIR / "models"
+        self._download_tmp_dir = DEFAULT_LOCAL_PROVIDER_DIR / "tmp"
         self._progress = DownloadProgressTracker()
 
     def get_recommended_models(self) -> list[LocalModelInfo]:
@@ -191,6 +192,7 @@ class ModelManager:
             )
 
             final_dir.parent.mkdir(parents=True, exist_ok=True)
+            self._download_tmp_dir.mkdir(parents=True, exist_ok=True)
             resolved_source = source or self._resolve_download_source()
             total_bytes = self._estimate_download_size(
                 repo_id=repo_id,
@@ -206,9 +208,7 @@ class ModelManager:
             self._resolved_source = resolved_source
             task_id = uuid.uuid4().hex
             self._final_dir = final_dir
-            self._staging_dir = (
-                final_dir.parent / f".{final_dir.name}.{task_id}.downloading"
-            )
+            self._staging_dir = self._download_tmp_dir / task_id
             self._queue = self._context.Queue()
             payload = {
                 "repo_id": repo_id,
