@@ -10,7 +10,7 @@ import shutil
 import threading
 import time
 import uuid
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from queue import Empty
 from typing import Any, Optional
@@ -481,10 +481,46 @@ class ModelManager:
         local_dir: Path,
     ) -> str:
         """Download a model repository from ModelScope."""
-        return ModelManager._get_modelscope_snapshot_download()(
-            model_id=repo_id,
-            local_dir=str(local_dir),
+        with ModelManager._with_modelscope_tqdm_disabled():
+            return ModelManager._get_modelscope_snapshot_download()(
+                model_id=repo_id,
+                local_dir=str(local_dir),
+            )
+
+    @staticmethod
+    @contextmanager
+    def _with_modelscope_tqdm_disabled() -> Any:
+        """Temporarily disable ModelScope tqdm output.
+
+        Windows desktop installs can run without a valid stderr console handle,
+        which makes tqdm initialization fail with ``OSError: [Errno 22]
+        Invalid argument`` when it tries to flush the stream.
+        """
+        patched_modules: list[tuple[Any, Any]] = []
+        module_names = (
+            "modelscope.utils.thread_utils",
+            "modelscope.hub.callback",
         )
+
+        try:
+            for module_name in module_names:
+                module = importlib.import_module(module_name)
+                original_tqdm = getattr(module, "tqdm", None)
+                if original_tqdm is None:
+                    continue
+
+                def _disabled_tqdm(*args: Any, __orig=original_tqdm,
+                                   **kwargs: Any) -> Any:
+                    kwargs["disable"] = True
+                    return __orig(*args, **kwargs)
+
+                setattr(module, "tqdm", _disabled_tqdm)
+                patched_modules.append((module, original_tqdm))
+
+            yield
+        finally:
+            for module, original_tqdm in reversed(patched_modules):
+                setattr(module, "tqdm", original_tqdm)
 
     def _estimate_huggingface_size(
         self,
