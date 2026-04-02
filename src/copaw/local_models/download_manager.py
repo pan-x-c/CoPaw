@@ -200,33 +200,7 @@ class DownloadProgressTracker:
         self._last_size_sample = 0
         self._last_sample_time = time.monotonic()
 
-    def reset(
-        self,
-        *,
-        status: DownloadTaskStatus = DownloadTaskStatus.IDLE,
-        total_bytes: int | None = None,
-        model_name: str | None = None,
-        source: str | None = None,
-        error: str | None = None,
-        local_path: str | None = None,
-    ) -> DownloadProgress:
-        """Reset progress to a fresh lifecycle state."""
-        with self._lock:
-            self._progress = DownloadProgress(
-                status=status,
-                model_name=model_name,
-                downloaded_bytes=0,
-                total_bytes=total_bytes,
-                speed_bytes_per_sec=0.0,
-                source=source,
-                error=error,
-                local_path=local_path,
-            )
-            self._last_size_sample = 0
-            self._last_sample_time = time.monotonic()
-            return self._progress
-
-    def set_status(
+    def _set_status(
         self,
         status: DownloadTaskStatus,
         *,
@@ -272,77 +246,6 @@ class DownloadProgressTracker:
             )
             return self._progress
 
-    def update_downloaded(
-        self,
-        downloaded_bytes: int,
-        *,
-        total_bytes: int | None = None,
-        model_name: str | None = None,
-        source: str | None = None,
-    ) -> DownloadProgress:
-        """Update downloaded bytes and recompute current transfer speed."""
-        with self._lock:
-            now = time.monotonic()
-            elapsed = max(now - self._last_sample_time, 1e-6)
-            speed = max(
-                0.0,
-                (downloaded_bytes - self._last_size_sample) / elapsed,
-            )
-            next_total_bytes = (
-                self._progress.total_bytes
-                if total_bytes is None
-                else total_bytes
-            )
-            next_model_name = (
-                self._progress.model_name if model_name is None else model_name
-            )
-            next_source = self._progress.source if source is None else source
-            self._progress = replace(
-                self._progress,
-                model_name=next_model_name,
-                downloaded_bytes=downloaded_bytes,
-                total_bytes=next_total_bytes,
-                speed_bytes_per_sec=speed,
-                source=next_source,
-            )
-            self._last_size_sample = downloaded_bytes
-            self._last_sample_time = now
-            return self._progress
-
-    def mark_cancelled(self) -> DownloadProgress:
-        """Transition to cancelled state."""
-        return self.set_status(DownloadTaskStatus.CANCELLED)
-
-    def mark_canceling(self) -> DownloadProgress:
-        """Transition to canceling state."""
-        return self.set_status(DownloadTaskStatus.CANCELING)
-
-    def mark_failed(
-        self,
-        error: str,
-        *,
-        status: DownloadTaskStatus = DownloadTaskStatus.FAILED,
-    ) -> DownloadProgress:
-        """Transition to a failed terminal state."""
-        return self.set_status(status, error=error)
-
-    def mark_completed(
-        self,
-        *,
-        local_path: str,
-        downloaded_bytes: int | None = None,
-    ) -> DownloadProgress:
-        """Transition to completed state and optionally finalize byte count."""
-        with self._lock:
-            progress = self._progress
-        if downloaded_bytes is not None:
-            progress = self.update_downloaded(downloaded_bytes)
-        return self.set_status(
-            DownloadTaskStatus.COMPLETED,
-            local_path=local_path,
-            total_bytes=progress.total_bytes,
-        )
-
     def get_status(self) -> DownloadTaskStatus:
         """Return the current lifecycle status."""
         with self._lock:
@@ -367,27 +270,61 @@ class DownloadProgressTracker:
         model_name: str | None = None,
         source: str | None = None,
     ) -> None:
-        self.reset(
-            status=DownloadTaskStatus.PENDING,
-            total_bytes=total_bytes,
-            model_name=model_name,
-            source=source,
-        )
-        self.set_status(DownloadTaskStatus.DOWNLOADING)
+        with self._lock:
+            self._progress = DownloadProgress(
+                status=DownloadTaskStatus.PENDING,
+                model_name=model_name,
+                downloaded_bytes=0,
+                total_bytes=total_bytes,
+                speed_bytes_per_sec=0.0,
+                source=source,
+                error=None,
+                local_path=None,
+            )
+            self._last_size_sample = 0
+            self._last_sample_time = time.monotonic()
+        self._set_status(DownloadTaskStatus.DOWNLOADING)
 
     def request_cancel(self) -> DownloadProgress:
-        return self.mark_canceling()
+        return self._set_status(DownloadTaskStatus.CANCELING)
 
     def apply_progress_update(
         self,
         update: DownloadProgressUpdate,
     ) -> DownloadProgress:
-        return self.update_downloaded(
-            update.downloaded_bytes,
-            total_bytes=update.total_bytes,
-            model_name=update.model_name,
-            source=update.source,
-        )
+        with self._lock:
+            now = time.monotonic()
+            elapsed = max(now - self._last_sample_time, 1e-6)
+            speed = max(
+                0.0,
+                (update.downloaded_bytes - self._last_size_sample) / elapsed,
+            )
+            next_total_bytes = (
+                self._progress.total_bytes
+                if update.total_bytes is None
+                else update.total_bytes
+            )
+            next_model_name = (
+                self._progress.model_name
+                if update.model_name is None
+                else update.model_name
+            )
+            next_source = (
+                self._progress.source
+                if update.source is None
+                else update.source
+            )
+            self._progress = replace(
+                self._progress,
+                model_name=next_model_name,
+                downloaded_bytes=update.downloaded_bytes,
+                total_bytes=next_total_bytes,
+                speed_bytes_per_sec=speed,
+                source=next_source,
+            )
+            self._last_size_sample = update.downloaded_bytes
+            self._last_sample_time = now
+            return self._progress
 
     def apply_result(
         self,
@@ -400,19 +337,26 @@ class DownloadProgressTracker:
                 raise RuntimeError(
                     "Completed download result must include local_path.",
                 )
-            self.mark_completed(
+            if downloaded_bytes is not None:
+                self.apply_progress_update(
+                    DownloadProgressUpdate(
+                        downloaded_bytes=downloaded_bytes,
+                    ),
+                )
+            self._set_status(
+                DownloadTaskStatus.COMPLETED,
                 local_path=result.local_path,
-                downloaded_bytes=downloaded_bytes,
+                total_bytes=self.get_progress().total_bytes,
             )
             return result
 
         if result.status == DownloadTaskStatus.CANCELLED:
-            self.mark_cancelled()
+            self._set_status(DownloadTaskStatus.CANCELLED)
             return result
 
-        self.mark_failed(
-            result.error or "Download failed.",
-            status=result.status,
+        self._set_status(
+            result.status,
+            error=result.error or "Download failed.",
         )
         return result
 
@@ -608,14 +552,11 @@ class ProcessDownloadController:
 
         with self._lock:
             current_task = self._task
-            if (
-                current_task is not None
-                and (
-                    current_task is resolved_task
-                    or (
-                        resolved_spec is not None
-                        and current_task.spec is resolved_spec
-                    )
+            if current_task is not None and (
+                current_task is resolved_task
+                or (
+                    resolved_spec is not None
+                    and current_task.spec is resolved_spec
                 )
             ):
                 self._task = None

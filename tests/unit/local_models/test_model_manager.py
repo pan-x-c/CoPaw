@@ -38,7 +38,7 @@ class _FakeController:
         self.cancel_called = True
         self.active = False
 
-    def snapshot(self) -> dict[str, object]:
+    def snapshot(self) -> dict:
         return self.snapshot_value
 
     def is_active(self) -> bool:
@@ -85,17 +85,30 @@ def test_start_download_uses_reachable_source(
         "modelscope",
     ]
     assert (
-        controller.started_spec.model_name
-        == "Qwen/Qwen2-0.5B-Instruct-GGUF"
+        controller.started_spec.model_name == "Qwen/Qwen2-0.5B-Instruct-GGUF"
     )
     assert controller.started_spec.source == "modelscope"
     assert controller.started_spec.total_bytes == 100
-    assert controller.started_spec.progress_path.parent == tmp_path / "tmp"
-    assert controller.started_spec.worker_payload == {
+    assert controller.started_spec.task.payload == {
         "repo_id": "Qwen/Qwen2-0.5B-Instruct-GGUF",
         "source": "modelscope",
-        "staging_dir": str(controller.started_spec.progress_path),
+        "staging_dir": str(
+            (tmp_path / "tmp").joinpath(
+                Path(
+                    controller.started_spec.task.payload["staging_dir"],
+                ).name,
+            ),
+        ),
     }
+    progress = controller.started_spec.task.probe_progress()
+    assert progress is not None
+    assert (
+        Path(controller.started_spec.task.payload["staging_dir"]).parent
+        == tmp_path / "tmp"
+    )
+    assert progress.total_bytes == 100
+    assert progress.model_name == "Qwen/Qwen2-0.5B-Instruct-GGUF"
+    assert progress.source == "modelscope"
 
 
 def test_download_model_is_wrapper(

@@ -341,13 +341,12 @@ class ModelManager:
                 traceback.format_exc(),
             )
             raise
-        else:
-            queue.put(
-                DownloadTaskResult(
-                    status=DownloadTaskStatus.COMPLETED,
-                    local_path=str(Path(local_path).resolve()),
-                ).to_message(),
-            )
+        queue.put(
+            DownloadTaskResult(
+                status=DownloadTaskStatus.COMPLETED,
+                local_path=str(Path(local_path).resolve()),
+            ).to_message(),
+        )
 
     @staticmethod
     def _download_to_directory(

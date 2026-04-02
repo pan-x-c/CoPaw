@@ -285,8 +285,8 @@ class LlamaCppBackend:
         return [
             line.strip()
             for line in result.combined_output.splitlines()
-            if line.strip()
-        ]
+            if line.strip() and not line.startswith("ggml")
+        ][1:]
 
     async def get_version(self) -> str:
         """get llama.cpp server version using `llama-server --version`."""
@@ -298,7 +298,14 @@ class LlamaCppBackend:
             [str(self.executable), "--version"],
             timeout=10,
         )
-        return result.combined_output.strip()
+        lines = result.stderr_lines
+        for line in lines:
+            if line.startswith("version:"):
+                return line[9:13]
+        raise RuntimeError(
+            "Unexpected version output from llama.cpp server: "
+            f"{result.combined_output}",
+        )
 
     def _is_download_active(self) -> bool:
         """Return whether the background download thread is active."""

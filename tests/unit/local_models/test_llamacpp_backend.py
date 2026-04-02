@@ -130,7 +130,7 @@ class _FakeStreamResponse:
         for index in range(0, len(self._payload), chunk_size):
             if self._chunk_delay:
                 time.sleep(self._chunk_delay)
-            yield self._payload[index:index + chunk_size]
+            yield self._payload[index : index + chunk_size]
 
     def __enter__(self) -> _FakeStreamResponse:
         return self
@@ -306,6 +306,26 @@ async def test_list_devices_returns_trimmed_output(
     downloader = _build_downloader(monkeypatch)
     calls: list[list[str]] = []
 
+    base_stderr = """
+ggml_metal_device_init: tensor API disabled for pre-M5 and pre-A19 devices
+ggml_metal_library_init: using embedded metal library
+ggml_metal_library_init: loaded in 0.030 sec
+ggml_metal_rsets_init: creating a residency set collection (keep_alive = 180 s)
+ggml_metal_device_init: GPU name:   MTL0
+ggml_metal_device_init: GPU family: MTLGPUFamilyApple7  (1007)
+ggml_metal_device_init: GPU family: MTLGPUFamilyCommon3 (3003)
+ggml_metal_device_init: GPU family: MTLGPUFamilyMetal3  (5001)
+ggml_metal_device_init: simdgroup reduction   = true
+ggml_metal_device_init: simdgroup matrix mul. = true
+ggml_metal_device_init: has unified memory    = true
+ggml_metal_device_init: has bfloat            = true
+ggml_metal_device_init: has tensor            = false
+ggml_metal_device_init: use residency sets    = true
+ggml_metal_device_init: use shared buffers    = true
+ggml_metal_device_init: recommendedMaxWorkingSetSize  = 11453.25 MB
+Available devices:
+"""
+
     async def fake_run_command_async(
         command: list[str],
         **_kwargs: Any,
@@ -315,8 +335,8 @@ async def test_list_devices_returns_trimmed_output(
         return CommandResult(
             command=command,
             returncode=0,
-            stdout="CPU\n\nCUDA0\n",
-            stderr="",
+            stdout="",
+            stderr=base_stderr,
         )
 
     monkeypatch.setattr(
@@ -330,8 +350,17 @@ async def test_list_devices_returns_trimmed_output(
         fake_run_command_async,
     )
 
-    assert await downloader.list_devices() == ["CPU", "CUDA0"]
+    assert await downloader.list_devices() == []
     assert calls == [[str(downloader.executable), "--list-devices"]]
+
+    base_stderr = base_stderr + """
+  MTL0: Apple M1 Pro (10922 MiB, 10922 MiB free)
+  BLAS: Accelerate (0 MiB, 0 MiB free)"""
+
+    assert await downloader.list_devices() == [
+        "MTL0: Apple M1 Pro (10922 MiB, 10922 MiB free)",
+        "BLAS: Accelerate (0 MiB, 0 MiB free)",
+    ]
 
 
 @pytest.mark.asyncio
@@ -349,7 +378,25 @@ async def test_get_version_reads_stderr_output(
             command=command,
             returncode=0,
             stdout="",
-            stderr="llama-server version 1.2.3\n",
+            stderr="""
+ggml_metal_device_init: tensor API disabled for pre-M5 and pre-A19 devices
+ggml_metal_library_init: using embedded metal library
+ggml_metal_library_init: loaded in 0.009 sec
+ggml_metal_rsets_init: creating a residency set collection (keep_alive = 180 s)
+ggml_metal_device_init: GPU name:   MTL0
+ggml_metal_device_init: GPU family: MTLGPUFamilyApple7  (1007)
+ggml_metal_device_init: GPU family: MTLGPUFamilyCommon3 (3003)
+ggml_metal_device_init: GPU family: MTLGPUFamilyMetal3  (5001)
+ggml_metal_device_init: simdgroup reduction   = true
+ggml_metal_device_init: simdgroup matrix mul. = true
+ggml_metal_device_init: has unified memory    = true
+ggml_metal_device_init: has bfloat            = true
+ggml_metal_device_init: has tensor            = false
+ggml_metal_device_init: use residency sets    = true
+ggml_metal_device_init: use shared buffers    = true
+ggml_metal_device_init: recommendedMaxWorkingSetSize  = 11453.25 MB
+version: 8514 (406f4e3f6)
+built with AppleClang 15.0.0.15000309 for Darwin arm64""",
         )
 
     monkeypatch.setattr(
@@ -363,7 +410,7 @@ async def test_get_version_reads_stderr_output(
         fake_run_command_async,
     )
 
-    assert await downloader.get_version() == "llama-server version 1.2.3"
+    assert await downloader.get_version() == "8514"
 
 
 @pytest.mark.asyncio
@@ -551,12 +598,11 @@ def test_start_download_delegates_to_process_controller(
         "llama-b1234-bin-win-cpu-x64.zip",
     ]
     assert controller.started_spec.source == (
-        "https://example.com/releases/b1234/"
-        "llama-b1234-bin-win-cpu-x64.zip"
+        "https://example.com/releases/b1234/" "llama-b1234-bin-win-cpu-x64.zip"
     )
-    assert controller.started_spec.worker_payload["chunk_size"] == 64
-    assert controller.started_spec.worker_payload["timeout"] == 15
-    assert controller.started_spec.worker_payload["file_name"] == (
+    assert controller.started_spec.task.payload["chunk_size"] == 64
+    assert controller.started_spec.task.payload["timeout"] == 15
+    assert controller.started_spec.task.payload["file_name"] == (
         "llama-b1234-bin-win-cpu-x64.zip"
     )
 
@@ -618,6 +664,7 @@ def test_download_worker_uses_browser_like_headers(
     ]
     assert (staging_dir / "bin" / "server.exe").read_text() == "zip-binary"
     assert messages[-1]["type"] == "result"
+    assert isinstance(messages[-1]["payload"], dict)
     assert messages[-1]["payload"]["status"] == "completed"
 
 
@@ -660,7 +707,7 @@ def test_download_worker_emits_failure_result(
         )
 
     assert messages[-1]["type"] == "result"
-    assert messages[-1]["payload"]["status"] == "failed"
+    assert messages[-1]["payload"]["status"] == "failed"  # type: ignore[index]
 
 
 def test_cancel_download_delegates_to_controller(
@@ -739,6 +786,7 @@ def test_download_worker_flattens_single_top_level_archive_dir(
 
     assert (staging_dir / "bin" / "server").read_text() == "tar-binary"
     assert not (staging_dir / "llama-b1234").exists()
+    assert isinstance(messages[-1]["payload"], dict)
     assert messages[-1]["payload"]["status"] == "completed"
 
 

@@ -26,6 +26,14 @@ class CommandResult:
         ]
         return "\n".join(parts)
 
+    @property
+    def stdout_lines(self) -> list[str]:
+        return self.stdout.splitlines()
+
+    @property
+    def stderr_lines(self) -> list[str]:
+        return self.stderr.splitlines()
+
 
 class CommandExecutionError(RuntimeError):
     def __init__(

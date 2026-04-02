@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-import copaw.utils.command_runner as command_runner
+from copaw.utils import command_runner
 from copaw.utils.command_runner import (
     CommandExecutionError,
     ManagedProcess,
@@ -332,12 +332,14 @@ def test_wait_for_process_exit_prefers_process_liveness(
             del timeout
             return 0
 
+    def _record_pid_check(pid: int, platform_name: str) -> bool:
+        pid_checks.append((pid, platform_name))
+        return True
+
     monkeypatch.setattr(
         command_runner,
         "_is_pid_running",
-        lambda pid, platform_name: (
-            pid_checks.append((pid, platform_name)) or True
-        ),
+        _record_pid_check,
     )
 
     managed = ManagedProcess(
@@ -348,7 +350,7 @@ def test_wait_for_process_exit_prefers_process_liveness(
     )
 
     assert command_runner._wait_for_process_exit(managed, timeout=1.0) is True
-    assert pid_checks == []
+    assert not pid_checks
 
 
 @pytest.mark.asyncio
