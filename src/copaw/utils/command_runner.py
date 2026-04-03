@@ -12,6 +12,12 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
+if not hasattr(os, "getpgid"):
+    os.getpgid = None  # type: ignore[attr-defined]
+if not hasattr(os, "killpg"):
+    os.killpg = None  # type: ignore[attr-defined]
+
+
 @dataclass(frozen=True)
 class CommandResult:
     command: list[str]
@@ -172,7 +178,7 @@ class ManagedProcess:
         return returncode
 
     def terminate(self) -> None:
-        if self.owns_process_group and self.platform_name != "nt":
+        if _supports_process_groups(self):
             with suppress(ProcessLookupError):
                 os.killpg(os.getpgid(self.pid), signal.SIGTERM)
             return
@@ -181,7 +187,7 @@ class ManagedProcess:
             self._process.terminate()
 
     def kill(self) -> None:
-        if self.owns_process_group and self.platform_name != "nt":
+        if _supports_process_groups(self):
             with suppress(ProcessLookupError):
                 os.killpg(os.getpgid(self.pid), signal.SIGKILL)
             return
@@ -221,7 +227,7 @@ def run_command(
             text=True,
             timeout=timeout,
             check=False,
-            cwd=str(cwd) if cwd is not None else None,
+            cwd=_coerce_subprocess_path(cwd),
             env=dict(env) if env is not None else None,
         )
     except FileNotFoundError as exc:
@@ -288,7 +294,7 @@ async def start_process_async(
     command_list = list(command)
     popen_kwargs = dict(process_kwargs)
     if cwd is not None:
-        popen_kwargs["cwd"] = str(cwd)
+        popen_kwargs["cwd"] = _coerce_subprocess_path(cwd)
     if env is not None:
         popen_kwargs["env"] = dict(env)
     owns_process_group = bool(
@@ -524,6 +530,25 @@ def _wait_for_process_exit(
         process.join(timeout=0)
         return True
     return not _is_pid_running(process.pid, process.platform_name)
+
+
+def _coerce_subprocess_path(
+    path: str | Path | None,
+) -> str | None:
+    if path is None:
+        return None
+    if isinstance(path, Path):
+        return path.as_posix()
+    return path
+
+
+def _supports_process_groups(process: ManagedProcess) -> bool:
+    return (
+        process.owns_process_group
+        and process.platform_name != "nt"
+        and callable(getattr(os, "getpgid", None))
+        and callable(getattr(os, "killpg", None))
+    )
 
 
 def _is_pid_running(
