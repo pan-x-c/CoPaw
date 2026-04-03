@@ -852,7 +852,7 @@ async def test_setup_server_falls_back_on_windows_not_implemented(
         def kill(self) -> None:
             self.returncode = -9
 
-    async def fake_start_process_async(command, **kwargs):
+    async def fake_start_command_async(command, **kwargs):
         start_calls.append((list(command), kwargs))
         return _FakeStartedProcess()
 
@@ -867,8 +867,8 @@ async def test_setup_server_falls_back_on_windows_not_implemented(
     )
     monkeypatch.setattr(
         downloader_module,
-        "start_process_async",
-        fake_start_process_async,
+        "start_command_async",
+        fake_start_command_async,
     )
     monkeypatch.setattr(downloader, "server_ready", fake_server_ready)
 
