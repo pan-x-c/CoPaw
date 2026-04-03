@@ -102,7 +102,7 @@ export const LocalRuntimePanel = memo(function LocalRuntimePanel({
             <Tooltip title={t("models.localRuntimeUpdateAction")}>
               <button
                 type="button"
-                className={`${styles.localStatusBadge} ${installBadge.className} ${styles.localStatusBadgeButton}`}
+                className={`${styles.localStatusBadge} ${styles.localStatusBadgeAction} ${styles.localStatusBadgeButton}`}
                 onClick={onStart}
               >
                 {installBadge.label}
