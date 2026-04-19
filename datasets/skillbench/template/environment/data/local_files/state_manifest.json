@@ -1,0 +1,31 @@
+{
+  "last_updated": "2026-04-15T17:52:36+08:00",
+  "description": "医疗预约 H5 页面项目文件，包含需求文档、API 规范、飞书配置、医生数据和项目追踪",
+  "directories": {
+    "workspace": {
+      "description": "项目工作文件，包含 API 规范、配置文件、生成脚本和数据",
+      "files": [
+        "api_spec.json",
+        "feishu_config.yaml",
+        "generate_doctors.py",
+        "doctors_data.json",
+        "project_tracker.json"
+      ]
+    },
+    "notes": {
+      "description": "用户笔记和待办事项",
+      "files": [
+        "项目需求.md",
+        "todo.md"
+      ]
+    },
+    "references": {
+      "description": "参考资料和文档",
+      "files": [
+        "feishu_bitable_guide.md"
+      ]
+    }
+  },
+  "total_files": 8,
+  "notes": "项目处于启动阶段，需要建立项目进度追踪和团队通知机制"
+}

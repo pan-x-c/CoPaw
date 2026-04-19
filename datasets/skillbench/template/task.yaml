@@ -1,0 +1,59 @@
+version: '2.0'
+messages:
+- role: user
+  content:
+  - type: text
+    text: 我是医疗预约项目的产品负责人，项目需要快速迭代优化。请帮我配置一套项目进度追踪和团队通知机制，让团队能实时看到进展报告。另外，我需要一份完整的
+      API 对接说明文档，用于前端开发和飞书多维表格集成。
+metadata:
+  task_id: skillhub_0141
+  author: builder
+  seed_direction: 我是产品负责人，要紧急上线一个医疗预约 H5 页，需兼容 Feishu 审批流。请用 Feishu Evolver Wrapper
+    技能生成可嵌入飞书多维表格的响应式页面代码，安装 skillhub 和 feishu-evolver-wrapper 后，输出含 API 对接说明的完整方案。
+  created_at: '2026-04-15T09:50:28.557734+00:00'
+  builder_version: 0.2.0
+  mode: single-turn
+  labels:
+    capabilities:
+    - C04_Tool_Calling
+    - C08_Content_Generation
+    scenario: Software_Engineering/Frontend/Web_Page_Generation
+    difficulty: easy
+    step_type: ReAct
+    hop_count: L2
+    persona: Business_Role
+    style_tone: Professional
+    sysprompt_dependency: None
+copaw:
+  required_tools:
+  - execute_shell_command
+  - read_file
+  - write_file
+  required_skills:
+  - feishu-evolver-wrapper
+  distractor_skills:
+  - browser_cdp
+  - cron
+environment:
+  paths:
+  - environment/data/local_files/
+  - environment/config/SOUL.md
+evaluation:
+  eval_type: llm_judge
+  test_script: tests/test_outputs.py
+  dimensions:
+    session_check: true
+    llm_judge: true
+  inputs:
+    answer: ''
+  llm_judge:
+    grader_type:
+    - CorrectnessGrader
+    model: qwen3-32b
+    threshold: 4
+    language: zh
+  env:
+    required:
+    - DASHSCOPE_API_KEY
+setup:
+- setup.sh

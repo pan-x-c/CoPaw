@@ -1,0 +1,55 @@
+{
+  "project": "医疗预约 H5 页面",
+  "status": "in_progress",
+  "start_date": "2026-04-15",
+  "target_launch": "2026-04-25",
+  "phases": [
+    {
+      "name": "需求确认",
+      "status": "completed",
+      "progress": 100,
+      "completed_date": "2026-04-15"
+    },
+    {
+      "name": "UI 设计",
+      "status": "in_progress",
+      "progress": 60,
+      "estimated_complete": "2026-04-17"
+    },
+    {
+      "name": "前端开发",
+      "status": "pending",
+      "progress": 0,
+      "estimated_start": "2026-04-17"
+    },
+    {
+      "name": "飞书集成",
+      "status": "pending",
+      "progress": 0,
+      "estimated_start": "2026-04-20"
+    },
+    {
+      "name": "测试联调",
+      "status": "pending",
+      "progress": 0,
+      "estimated_start": "2026-04-22"
+    },
+    {
+      "name": "上线部署",
+      "status": "pending",
+      "progress": 0,
+      "estimated_start": "2026-04-25"
+    }
+  ],
+  "team": [
+    {"role": "产品负责人", "name": "李明"},
+    {"role": "UI 设计师", "name": "王芳"},
+    {"role": "前端开发", "name": "张伟"},
+    {"role": "后端开发", "name": "刘强"},
+    {"role": "测试工程师", "name": "陈静"}
+  ],
+  "risks": [
+    {"description": "飞书审批流接口可能需额外权限", "severity": "medium"},
+    {"description": "号源数据同步延迟", "severity": "low"}
+  ]
+}

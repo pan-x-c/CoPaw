@@ -1,0 +1,53 @@
+# 飞书集成配置
+# 用于医疗预约系统与飞书多维表格、审批流的对接
+
+feishu:
+  app_id: "cli_a3b8c9d0e1f2g3h4"
+  app_secret: "${FEISHU_APP_SECRET}"
+  
+  # 多维表格配置
+  bitable:
+    base_token: "bascnXYZ123456789"
+    tables:
+      doctors:
+        table_id: "tblDoctor001"
+        fields:
+          - name: "医生姓名"
+            type: "text"
+          - name: "科室"
+            type: "single_select"
+          - name: "可预约日期"
+            type: "date"
+          - name: "剩余号源"
+            type: "number"
+      appointments:
+        table_id: "tblAppointment001"
+        fields:
+          - name: "患者姓名"
+            type: "text"
+          - name: "联系电话"
+            type: "phone"
+          - name: "预约科室"
+            type: "text"
+          - name: "预约医生"
+            type: "text"
+          - name: "预约时间"
+            type: "datetime"
+          - name: "审批状态"
+            type: "single_select"
+            options: ["待审批", "已通过", "已拒绝"]
+
+  # 审批流配置
+  approval:
+    process_code: "APPROVAL_MEDICAL_BOOKING"
+    approvers:
+      - "user_id_001"  # 科室主任
+      - "user_id_002"  # 医务科
+
+  # 机器人通知配置
+  bot:
+    webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+    notification_events:
+      - "appointment_submitted"
+      - "approval_completed"
+      - "appointment_reminder"

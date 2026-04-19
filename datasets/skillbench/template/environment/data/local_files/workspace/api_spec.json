@@ -1,0 +1,101 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "医疗预约系统 API",
+    "version": "1.0.0",
+    "description": "支持号源查询、预约提交、审批状态跟踪"
+  },
+  "servers": [
+    {
+      "url": "https://api.medical-appointment.example.com/v1",
+      "description": "生产环境"
+    }
+  ],
+  "paths": {
+    "/departments": {
+      "get": {
+        "summary": "获取科室列表",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {"type": "string"},
+                      "name": {"type": "string"},
+                      "description": {"type": "string"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/appointments": {
+      "post": {
+        "summary": "提交预约申请",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "patient_name": {"type": "string"},
+                  "patient_phone": {"type": "string"},
+                  "department_id": {"type": "string"},
+                  "doctor_id": {"type": "string"},
+                  "appointment_date": {"type": "string", "format": "date"},
+                  "appointment_time": {"type": "string"}
+                },
+                "required": ["patient_name", "patient_phone", "department_id", "doctor_id", "appointment_date"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "预约申请已提交，等待审批"
+          }
+        }
+      }
+    },
+    "/appointments/{id}/status": {
+      "get": {
+        "summary": "查询预约审批状态",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {"type": "string"},
+                    "status": {"type": "string", "enum": ["pending", "approved", "rejected"]},
+                    "approval_time": {"type": "string", "format": "date-time"},
+                    "approver": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

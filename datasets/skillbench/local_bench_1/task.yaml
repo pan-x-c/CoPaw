@@ -1,0 +1,55 @@
+version: "2.0"
+
+messages:
+  - role: user
+    content:
+      - type: text
+        text: "请帮我系统调研 Qwen3 Next 所使用的线性注意力机制，重点关注其原理，并与传统的注意力机制对比"
+
+metadata:
+  task_id: "local_bench_1"
+  author: "panxuchen"
+  labels:
+    capabilities:
+      - "Local_Remote_Collaboration"
+      - "Tool_Usage"
+    difficulty: "medium"
+    step_type: "ReAct"
+    hop_count: "L2"
+    persona: "Default_Assistant"
+    style_tone: "Professional"
+    sysprompt_dependency: "None"
+
+copaw:
+  required_tools:
+    - "read_file"
+    - "write_file"
+  required_skills:
+    - "himalaya"
+  distractor_skills:
+    - "calendar-ops"
+
+environment:
+  paths:
+    - "environment/data/mock_emails/"
+    - "environment/config/SOUL.md"
+
+evaluation:
+  eval_type: "hybrid"
+  test_script: "tests/test.sh"
+  dimensions:
+    session_check: false
+    llm_judge: true
+  inputs:
+    answer: ""
+  llm_judge:
+    grader_type:
+      - "CorrectnessGrader"
+    model: "qwen3-32b"
+    threshold: 4
+    language: "zh"
+  env:
+    required:
+      - "DASHSCOPE_API_KEY"
+
+setup: []

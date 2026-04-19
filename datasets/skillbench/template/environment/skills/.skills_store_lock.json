@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "feishu-evolver-wrapper": {
+      "name": "Feishu Evolver Wrapper",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=feishu-evolver-wrapper",
+      "source": "skillhub",
+      "version": "1.7.1"
+    }
+  }
+}
