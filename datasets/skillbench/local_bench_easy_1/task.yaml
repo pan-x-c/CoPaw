@@ -4,16 +4,16 @@ messages:
   - role: user
     content:
       - type: text
-        text: "请帮我系统调研 Qwen3 Next 所使用的线性注意力机制，重点关注其原理，并与传统的注意力机制对比"
+        text: "你好，请告诉我现在的时间。"
 
 metadata:
-  task_id: "local_bench_1"
+  task_id: "local_bench_easy_1"
   author: "panxuchen"
   labels:
     capabilities:
       - "Local_Remote_Collaboration"
       - "Tool_Usage"
-    difficulty: "medium"
+    difficulty: "easy"
     step_type: "ReAct"
     hop_count: "L2"
     persona: "Default_Assistant"
@@ -24,15 +24,14 @@ copaw:
   required_tools:
     - "read_file"
     - "write_file"
+    - "get_current_time"
+    - "execute_shell_command"
+    - "list_agents"
+    - "chat_with_agent"
   required_skills:
-    - "himalaya"
+    - "make_plan"
   distractor_skills:
-    - "calendar-ops"
-
-environment:
-  paths:
-    - "environment/data/mock_emails/"
-    - "environment/config/SOUL.md"
+    - "make_plan"
 
 evaluation:
   eval_type: "hybrid"
